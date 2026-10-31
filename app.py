@@ -1,63 +1,16 @@
 import streamlit as st
-from collections import Counter
 from datetime import datetime
+from collections import Counter
 
-# ==========================================
-# 1. PAGE CONFIG & CUSTOM CSS (Responsive)
-# ==========================================
+# ตั้งค่าหน้าเว็บ
 st.set_page_config(
-    page_title="LAO AI PROFESSIONAL v4.0",
-    page_icon="🚀",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    page_title="Lao AI Professional v4.0",
+    page_icon="🧠",
+    layout="centered"
 )
 
-st.markdown("""
-<style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* Grid Container สำหรับจัดเลย์เอาต์การ์ดตัวเลข */
-    .grid-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-        gap: 10px;
-        margin-top: 15px;
-        margin-bottom: 15px;
-    }
-    
-    /* สไตล์การ์ดแสดงผลความถี่ */
-    .stat-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        border: 1px solid #e9ecef;
-        border-top: 4px solid #ff4b4b;
-        border-radius: 12px;
-        padding: 12px 8px;
-        text-align: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
-    .stat-num {
-        font-size: 28px;
-        font-weight: 800;
-        color: #1f2937;
-        line-height: 1.2;
-    }
-    .stat-count {
-        font-size: 13px;
-        font-weight: 600;
-        color: #ef4444;
-        background-color: #fee2e2;
-        padding: 2px 8px;
-        border-radius: 12px;
-        display: inline-block;
-        margin-top: 6px;
-    }
-</style>
-""", unsafe_allow_html=True)
+VERSION = "4.0 WEB MOBILE"
 
-# ==========================================
-# 2. FORMULAS & CALCULATION LOGIC
-# ==========================================
 DAILY_NUMBERS = {
     "Monday": "056787",
     "Tuesday": "657872",
@@ -70,194 +23,63 @@ DAILY_NUMBERS = {
 
 def get_daily_numbers():
     day_name = datetime.now().strftime("%A")
-    return DAILY_NUMBERS.get(day_name, "000000"), day_name
-
-def formula1(num): return f"{((int(num[0])+int(num[1])+int(num[2]))*(int(num[3])+int(num[4])+int(num[5])))%10000:04d}"
-def formula2(num): return f"{((int(num[0])*int(num[1]))+(int(num[2])*int(num[3]))+(int(num[4])*int(num[5])))%10000:04d}"
-def formula3(num): return f"{sum(int(x) for x in num)*111%10000:04d}"
-def formula_cross(num): return f"{(int(num[-4])+9)%10}{(int(num[-4])+int(num[-3])+1)%10}"
+    daily_value = DAILY_NUMBERS.get(day_name, "00000")
+    return daily_value, day_name
 
 # ==========================================
-# 3. STREAMLIT APP UI
+# FORMULAS (1 - 15)
 # ==========================================
-st.title("🚀 LAO AI PROFESSIONAL v4.0")
+def formula1(number):
+    a, b, c, d, e, f = [int(x) for x in number]
+    value = ((a+b+c)*(d+e+f)+(a*f)+(c*e)) % 10000
+    res = f"{value:04d}"
+    return formula5(number) if res == "0000" else res
 
-# ช่องรับเลขฐาน 6 หลัก
-target_number = st.text_input("📌 ป้อนเลขฐาน 6 หลัก:", value="723294", max_chars=6)
+def formula2(number):
+    a, b, c, d, e, f = [int(x) for x in number]
+    return f"{((a*b)+(c*d)+(e*f)) % 10000:04d}"
 
-if len(target_number) == 6 and target_number.isdigit():
-    daily_val, day_name = get_daily_numbers()
-    
-    # 1. คำนวณผลลัพธ์จากสูตรต่าง ๆ
-    f1_res = formula1(target_number)
-    f2_res = formula2(target_number)
-    f3_res = formula3(target_number)
-    cross_res = formula_cross(target_number)
-    
-    # 2. ตั้งค่าการนับความถี่ตัวเลข (0-9) ครบทุกตัว
-    score = {str(i): 0 for i in range(10)}
-    
-    # รวบรวมผลลัพธ์จากทุกสูตรมารวมกัน
-    all_digits_str = f1_res + f2_res + f3_res + cross_res + daily_val
-    for digit in all_digits_str:
-        if digit in score:
-            score[digit] += 1
-            
-    # 3. เรียงลำดับตามความถี่จากมากไปน้อย
-    ranked_digits = sorted(score.items(), key=lambda x: (-x[1], int(x[0])))
-    
-    # 4. [สำคัญ] ตัดสไลซ์ข้อมูลอาเรย์ เลือกเฉพาะ 6 อันดับแรกที่มีความถี่สูงสุด
-    top_6_digits = ranked_digits[:6]
-    
-    # 5. แสดงผลบนหน้าจอด้วย CSS Grid
-    st.subheader("📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
-    
-    cards_html = '<div class="grid-container">'
-    for num, count in top_6_digits:
-        cards_html += f"""
-        <div class="stat-card">
-            <div class="stat-num">{num}</div>
-            <div class="stat-count">{count} ครั้ง</div>
-        </div>
-        """
-    cards_html += '</div>'
-    
-    st.markdown(cards_html, unsafe_allow_html=True)
-    st.caption("ความถี้นี้นับจากผลลัพธ์การคำนวณทั้งหมด และตัดสไลซ์แสดงผลเฉพาะ 6 อันดับสูงสุด")
+def formula3(number):
+    a, b, c, d, e, f = [int(x) for x in number]
+    return f"{((a+b+c+d+e+f)*111) % 10000:04d}"
 
-else:
-    st.warning("⚠️ กรุณากรอกเลขฐานให้ครบ 6 หลัก")import streamlit as st
-from collections import Counter
-from datetime import datetime
-from itertools import combinations
+def formula4(number):
+    a, b, c, d, e, f = [int(x) for x in number]
+    value = ((a+b+c)*(d+e+f)) % 10000
+    res = f"{value:04d}"
+    return formula5(number) if res == "0000" else res
 
-# ==========================================
-# 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
-# ==========================================
-st.set_page_config(
-    page_title="LAO AI PROFESSIONAL v4.0",
-    page_icon="🚀",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
-
-    html, body, [class*="css"] {
-        font-family: 'Sarabun', sans-serif;
-    }
-
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    .grid-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-        gap: 10px;
-        margin-top: 15px;
-        margin-bottom: 15px;
-    }
-    
-    .stat-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
-        border: 1px solid #bae6fd;
-        border-top: 4px solid #0284c7;
-        border-radius: 12px;
-        padding: 12px 8px;
-        text-align: center;
-        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.08);
-    }
-    .stat-num {
-        font-size: 28px;
-        font-weight: 800;
-        color: #0c4a6e;
-        line-height: 1.2;
-    }
-    .stat-count {
-        font-size: 12px;
-        font-weight: 600;
-        color: #0369a1;
-        background-color: #e0f2fe;
-        padding: 2px 8px;
-        border-radius: 12px;
-        display: inline-block;
-        margin-top: 6px;
-    }
-
-    .pair-box {
-        background-color: #f0f9ff;
-        border-left: 4px solid #0284c7;
-        border-radius: 8px;
-        padding: 12px 15px;
-        margin-top: 10px;
-        margin-bottom: 15px;
-    }
-    .pair-title {
-        font-weight: 700;
-        color: #0369a1;
-        margin-bottom: 8px;
-        font-size: 15px;
-    }
-    .badge {
-        display: inline-block;
-        background-color: #ffffff;
-        border: 1px solid #7dd3fc;
-        border-radius: 6px;
-        padding: 4px 10px;
-        margin: 3px;
-        font-weight: 600;
-        color: #0c4a6e;
-        font-size: 14px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-    }
-    .badge-highlight {
-        background-color: #0284c7;
-        border-color: #0369a1;
-        color: #ffffff;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# ==========================================
-# 2. ORIGINAL 15 FORMULAS & DAILY UTILS
-# ==========================================
-DAILY_NUMBERS = {
-    "Monday": "056787",
-    "Tuesday": "657872",
-    "Wednesday": "390768",
-    "Thursday": "897693",
-    "Friday": "305687",
-    "Saturday": "7890123",
-    "Sunday": "8901234"
-}
-
-def get_daily_numbers():
-    day_name = datetime.now().strftime("%A")
-    return DAILY_NUMBERS.get(day_name, "000000"), day_name
-
-def formula1(num): return f"{((int(num[0])+int(num[1])+int(num[2]))*(int(num[3])+int(num[4])+int(num[5])))%10000:04d}"
-def formula2(num): return f"{((int(num[0])*int(num[1]))+(int(num[2])*int(num[3]))+(int(num[4])*int(num[5])))%10000:04d}"
-def formula3(num): return f"{sum(int(x) for x in num)*111%10000:04d}"
-def formula4(num): return f"{((int(num[0])+int(num[1])+int(num[2]))*(int(num[3])+int(num[4])+int(num[5])))%10000:04d}"
 def formula5(number):
     digits = [int(x) for x in number]
     score = Counter()
-    for digit, count in Counter(digits).items():
-        score[digit] += count * 5
-    for i in range(len(digits) - 1):
-        score[(digits[i] + digits[i + 1]) % 10] += 2
-        score[(digits[i] * digits[i + 1]) % 10] += 2
-        score[abs(digits[i] - digits[i + 1])] += 1
+    counter = Counter(digits)
+    for digit, count in counter.items(): score[digit] += count * 5
+    for i in range(len(digits) - 1): score[(digits[i] + digits[i + 1]) % 10] += 2
+    for i in range(len(digits) - 1): score[(digits[i] * digits[i + 1]) % 10] += 2
+    for i in range(len(digits) - 1): score[abs(digits[i] - digits[i + 1])] += 1
     ranking = sorted(score.items(), key=lambda x: (-x[1], x[0]))
     return "".join(str(digit) for digit, _ in ranking[:4]).zfill(4)
 
-def formula6(num): return f"{((int(num[0])+int(num[2])+int(num[4]))*(int(num[1])+int(num[3])+int(num[5])))%10000:04d}"
-def formula7(num): return f"{((int(num[0:2])+int(num[4:6])))%10000:04d}"
-def formula8(num): return f"{sum(int(x) for x in num)*123%10000:04d}"
-def formula9(num): return f"{abs((int(num[0:3])-int(num[3:6])))%10000:04d}"
-def formula10(num): return f"{((int(num[0])*int(num[5]))+(int(num[1])*int(num[4]))+(int(num[2])*int(num[3])))%10000:04d}"
+def formula6(number):
+    a, b, c, d, e, f = [int(x) for x in number]
+    return f"{((a+c+e)*(b+d+f)) % 10000:04d}"
+
+def formula7(number):
+    a, b, c, d, e, f = [int(x) for x in number]
+    return f"{((a*10+b)+(e*10+f)) % 10000:04d}"
+
+def formula8(number):
+    a, b, c, d, e, f = [int(x) for x in number]
+    return f"{((a+b+c+d+e+f)*123) % 10000:04d}"
+
+def formula9(number):
+    a, b, c, d, e, f = [int(x) for x in number]
+    return f"{abs((a*100+b*10+c)-(d*100+e*10+f)) % 10000:04d}"
+
+def formula10(number):
+    a, b, c, d, e, f = [int(x) for x in number]
+    return f"{((a*f)+(b*e)+(c*d)) % 10000:04d}"
+
 def formula11(number):
     digits = [int(x) for x in number]
     results = []
@@ -270,16 +92,19 @@ def formula11(number):
     if len(ranking) == 1: return ranking[0][0] * 2
     return ranking[0][0] + ranking[1][0]
 
-def formula12(num):
-    base = (int(num[3]) + int(num[4])) % 10
+def formula12(number):
+    _, _, _, d, e, _ = [int(x) for x in number]
+    base = (d + e) % 10
     return f"{base}{(base+1)%10}{(base+2)%10}{(base+3)%10}"
 
-def formula13(num): return f"{((int(num[0])+int(num[2])+int(num[5]))*9)%10000:04d}"
-def formula14(num): 
-    f = int(num[5])
+def formula13(number):
+    a, _, c, _, _, f = [int(x) for x in number]
+    return f"{((a + c + f) * 9) % 10000:04d}"
+
+def formula14(number):
+    f = int(number[5])
     return f"{f}{f}{(f+1)%10}{(f+1)%10}"
 
-def formula_cross(num): return f"{(int(num[-4])+9)%10}{(int(num[-4])+int(num[-3])+1)%10}"
 def formula_neighbor(number):
     pos4, pos6 = int(number[3]), int(number[5])
     res_front = (pos6 - 1) % 10
@@ -287,84 +112,68 @@ def formula_neighbor(number):
     return f"{res_front}{res_back_start}{(res_back_start+1)%10}{(res_back_start+2)%10}"
 
 formulas = [
-    formula1, formula2, formula3, formula4, formula5, 
-    formula6, formula7, formula8, formula9, formula10, 
-    formula11, formula12, formula13, formula14, formula_neighbor
+    ("Formula 1", formula1), ("Formula 2", formula2), ("Formula 3", formula3),
+    ("Formula 4", formula4), ("Formula 5", formula5), ("Formula 6", formula6),
+    ("Formula 7", formula7), ("Formula 8", formula8), ("Formula 9", formula9),
+    ("Formula 10", formula10), ("Formula 11", formula11), ("Formula 12", formula12), 
+    ("Formula 13", formula13), ("Formula 14", formula14), ("Formula Neighbor", formula_neighbor)
 ]
 
+def calculate_formula_frequency(formula_outputs, top_n=5):
+    counter = Counter()
+    for result in formula_outputs.values():
+        number = str(result).strip()
+        if len(number) == 4 and number.isdigit():
+            counter.update(number)
+    ranking = sorted(counter.items(), key=lambda item: (-item[1], int(item[0])))
+    return counter, ranking[:top_n]
+
 # ==========================================
-# 3. STREAMLIT APP UI
+# STREAMLIT UI
 # ==========================================
-st.title("🚀 LAO AI PROFESSIONAL v4.0")
+st.title("🧠 LAO AI PROFESSIONAL")
+day_val, day_name = get_daily_numbers()
+st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name} (เลขประจำวัน: {day_val})")
 
-target_number = st.text_input("📌 ป้อนเลขฐาน 6 หลัก:", value="723294", max_chars=6)
+st.markdown("---")
 
-if len(target_number) == 6 and target_number.isdigit():
-    daily_val, day_name = get_daily_numbers()
-    
-    # รวมผลลัพธ์จาก 15 สูตร
-    all_results_str = "".join([f(target_number) for f in formulas])
-    cross_res = formula_cross(target_number)
-    
-    all_digits_str = all_results_str + cross_res + daily_val
-    
-    # นับความถี่ตัวเลข 0-9 ครบทุกตัว
-    score = {str(i): 0 for i in range(10)}
-    for digit in all_digits_str:
-        if digit in score:
-            score[digit] += 1
-            
-    # เรียงลำดับความถี่จากมากไปน้อย (ถ้าเท่ากันเรียงตัวเลขจากน้อยไปมาก)
-    ranked_digits = sorted(score.items(), key=lambda x: (-x[1], int(x[0])))
-    
-    # ตัดสไลซ์เฉพาะ 6 ตัวสูงสุด
-    top_6_digits = ranked_digits[:6]
-    digits_only = [item[0] for item in top_6_digits]
-    
-    # แสดงผลการ์ดความถี่ 6 ตัวสูงสุด
-    st.subheader("📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
-    
-    html_parts = ['<div class="grid-container">']
-    for num, count in top_6_digits:
-        html_parts.append(f'<div class="stat-card"><div class="stat-num">{num}</div><div class="stat-count">{count} ครั้ง</div></div>')
-    html_parts.append('</div>')
-    
-    st.markdown("".join(html_parts), unsafe_allow_html=True)
-    st.caption("ความถี้นี้นับจากผลลัพธ์การคำนวณครบทั้ง 15 สูตร และตัดสไลซ์แสดงผลเฉพาะ 6 อันดับสูงสุด")
+# ช่องกรอกเลขฐาน
+base_input = st.text_input("ป้อนเลขฐาน 6 หลัก:", value="863206", max_chars=6)
 
-    # ส่วนจับคู่เลข 2 ตัว และ 3 ตัว
-    st.divider()
-    st.subheader("🎯 ชุดจับคู่เลขเด่น (จาก 6 ตัวบ่อยสุด)")
+if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
+    if len(base_input) != 6 or not base_input.isdigit():
+        st.error("❌ กรุณากรอกเลขฐานให้ครบ 6 หลัก และต้องเป็นตัวเลขเท่านั้น")
+    else:
+        formula_outputs = {}
+        for name, func in formulas:
+            try:
+                res = str(func(base_input)).strip()
+                if res.isdigit():
+                    formula_outputs[name] = res.zfill(4)[-4:]
+            except Exception:
+                pass
 
-    pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
-    pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
-    
-    top_3_straight = "".join(digits_only[:3])
-    top_2_straight = "".join(digits_only[:2])
+        counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=5)
+        valid_count = sum(1 for v in formula_outputs.values() if len(str(v)) == 4 and str(v).isdigit())
 
-    st.markdown(f"""
-    <div class="pair-box" style="border-left-color: #0284c7; background-color: #e0f2fe;">
-        <div class="pair-title">🔹 ชุดเน้นพิเศษ (Top Pick จากอันดับ 1-3)</div>
-        <span class="badge badge-highlight">3 ตัวบน: {top_3_straight}</span>
-        <span class="badge badge-highlight">2 ตัวบน/ล่าง: {top_2_straight}</span>
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown("### เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
+        
+        # แสดงผลแบบ Columns สวยงามบนมือถือ
+        if top_digits:
+            cols = st.columns(len(top_digits))
+            for i, (digit, count) in enumerate(top_digits):
+                with cols[i]:
+                    st.metric(label=f"{count} ครั้ง", value=str(digit))
 
-    badges_2d = "".join([f'<span class="badge">{p}</span>' for p in pairs_2d])
-    st.markdown(f"""
-    <div class="pair-box">
-        <div class="pair-title">🎲 ชุด 2 ตัวจับคู่วิน (15 ชุด)</div>
-        {badges_2d}
-    </div>
-    """, unsafe_allow_html=True)
+        st.caption(f"ความถี่นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count * 4} หลัก ไม่ใช่สถิติผลหวยย้อนหลัง และมีอคติจากสูตรที่สร้างเลข 0 นำหน้าได้")
 
-    badges_3d = "".join([f'<span class="badge">{p}</span>' for p in pairs_3d])
-    st.markdown(f"""
-    <div class="pair-box">
-        <div class="pair-title">🎲 ชุด 3 ตัวจับคู่วิน (20 ชุด)</div>
-        {badges_3d}
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown("---")
+        st.markdown("### 3. เลขเด่นจากการรวมสูตร")
+        
+        main_group = [d for d, c in top_digits if c >= 10]
+        sub_group = [d for d, c in top_digits if 5 <= c < 10]
+        low_group = [str(i) for i in range(10) if i not in [int(d) for d, _ in top_digits]]
 
-else:
-    st.warning("⚠️ กรุณากรอกเลขฐานให้ครบ 6 หลัก")
+        st.write(f"• **กลุ่มเด่น:** {' – '.join(main_group) if main_group else '-'}")
+        st.write(f"• **กลุ่มรอง:** {' – '.join(sub_group) if sub_group else '-'}")
+        st.markdown(f"• **เลขที่ปรากฏน้อยกว่า:** {' – '.join(low_group) if low_group else '-'}")
