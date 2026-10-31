@@ -3,9 +3,6 @@ from collections import Counter
 from datetime import datetime
 from itertools import combinations
 
-# ==========================================
-# 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
-# ==========================================
 st.set_page_config(
     page_title="LAO AI PROFESSIONAL v4.0",
     page_icon="🚀",
@@ -16,11 +13,7 @@ st.set_page_config(
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
-
-    html, body, [class*="css"] {
-        font-family: 'Sarabun', sans-serif;
-    }
-
+    html, body, [class*="css"] { font-family: 'Sarabun', sans-serif; }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
@@ -31,7 +24,6 @@ st.markdown("""
         margin-top: 15px;
         margin-bottom: 15px;
     }
-    
     .stat-card {
         background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
         border: 1px solid #bae6fd;
@@ -57,7 +49,6 @@ st.markdown("""
         display: inline-block;
         margin-top: 6px;
     }
-
     .pair-box {
         background-color: #f0f9ff;
         border-left: 4px solid #0284c7;
@@ -92,17 +83,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# 2. ALL 15 FORMULAS & DAILY UTILS
-# ==========================================
 DAILY_NUMBERS = {
-    "Monday": "056787",
-    "Tuesday": "657872",
-    "Wednesday": "390768",
-    "Thursday": "897693",
-    "Friday": "305687",
-    "Saturday": "7890123",
-    "Sunday": "8901234"
+    "Monday": "056787", "Tuesday": "657872", "Wednesday": "390768",
+    "Thursday": "897693", "Friday": "305687", "Saturday": "7890123", "Sunday": "8901234"
 }
 
 def get_daily_numbers():
@@ -111,9 +94,8 @@ def get_daily_numbers():
 
 def formula1(number):
     a, b, c, d, e, f = [int(x) for x in number]
-    value = ((a+b+c)*(d+e+f)+(a*f)+(c*e)) % 10000
-    res = f"{value:04d}"
-    return formula5(number) if res == "0000" else res
+    val = ((a+b+c)*(d+e+f)+(a*f)+(c*e)) % 10000
+    return f"{val:04d}" if val != 0 else "5555"
 
 def formula2(number):
     a, b, c, d, e, f = [int(x) for x in number]
@@ -125,21 +107,19 @@ def formula3(number):
 
 def formula4(number):
     a, b, c, d, e, f = [int(x) for x in number]
-    value = ((a+b+c)*(d+e+f)) % 10000
-    res = f"{value:04d}"
-    return formula5(number) if res == "0000" else res
+    val = ((a+b+c)*(d+e+f)) % 10000
+    return f"{val:04d}" if val != 0 else "5555"
 
 def formula5(number):
     digits = [int(x) for x in number]
     score = Counter()
-    for digit, count in Counter(digits).items():
-        score[digit] += count * 5
+    for d, c in Counter(digits).items(): score[d] += c * 5
     for i in range(len(digits) - 1):
         score[(digits[i] + digits[i + 1]) % 10] += 2
         score[(digits[i] * digits[i + 1]) % 10] += 2
         score[abs(digits[i] - digits[i + 1])] += 1
     ranking = sorted(score.items(), key=lambda x: (-x[1], x[0]))
-    return "".join(str(digit) for digit, _ in ranking[:4]).zfill(4)
+    return "".join(str(d) for d, _ in ranking[:4]).zfill(4)
 
 def formula6(number):
     a, b, c, d, e, f = [int(x) for x in number]
@@ -163,11 +143,8 @@ def formula10(number):
 
 def formula11(number):
     digits = [int(x) for x in number]
-    results = []
-    for i in range(len(digits)):
-        for j in range(i + 1, len(digits)):
-            results.append(f"{(digits[i] * digits[j]) % 100:02d}")
-    counter = Counter(results)
+    res = [f"{(digits[i] * digits[j]) % 100:02d}" for i in range(len(digits)) for j in range(i + 1, len(digits))]
+    counter = Counter(res)
     ranking = sorted(counter.items(), key=lambda x: (-x[1], int(x[0])))
     if not ranking: return "0000"
     if len(ranking) == 1: return ranking[0][0] * 2
@@ -205,9 +182,7 @@ def formula_cross_multiply(number):
 
 def formula_neighbor(number):
     pos4, pos6 = int(number[3]), int(number[5])
-    res_front = (pos6 - 1) % 10
-    res_back_start = (pos4 + 2) % 10
-    return f"{res_front}{res_back_start}{(res_back_start+1)%10}{(res_back_start+2)%10}"
+    return f"{(pos6 - 1) % 10}{(pos4 + 2) % 10}{(pos4 + 3) % 10}{(pos4 + 4) % 10}"
 
 formulas = [
     formula1, formula2, formula3, formula4, formula5, 
@@ -215,39 +190,28 @@ formulas = [
     formula11, formula12, formula13, formula14, formula_neighbor
 ]
 
-# ==========================================
-# 3. STREAMLIT APP UI
-# ==========================================
 st.title("🚀 LAO AI PROFESSIONAL v4.0")
-
 target_number = st.text_input("📌 ป้อนเลขฐาน 6 หลัก:", value="723294", max_chars=6)
 
 if len(target_number) == 6 and target_number.isdigit():
     daily_val, day_name = get_daily_numbers()
     
-    # รวบรวมผลลัพธ์จาก 15 สูตร + ข้ามสายพันธุ์ + เลขประจำวัน
-    all_results_str = ""
-    for f in formulas:
-        all_results_str += f(target_number)
-    
+    all_results_str = "".join([f(target_number) for f in formulas])
     cross_res = formula_cross_multiply(target_number)
-    yt_pairs = formula_13_cross(target_number)
-    yt_digits = "".join(yt_pairs)
+    yt_digits = "".join(formula_13_cross(target_number))
     
     all_digits_str = all_results_str + cross_res + yt_digits + daily_val
     
-    # นับความถี่ตัวเลข 0-9 ครบทุกตัว
+    # นับความถี่ 0-9
     score = {str(i): 0 for i in range(10)}
     for digit in all_digits_str:
-        if digit in score:
-            score[digit] += 1
+        if digit in score: score[digit] += 1
             
-    # เรียงลำดับจากมากไปน้อย และตัดสไลซ์เฉพาะ 6 ตัวสูงสุด
+    # เรียงลำดับความถี่จากมากไปน้อย (ถ้าความถี่เท่ากัน ให้เรียงเลขจากน้อยไปมาก)
     ranked_digits = sorted(score.items(), key=lambda x: (-x[1], int(x[0])))
     top_6_digits = ranked_digits[:6]
     digits_only = [item[0] for item in top_6_digits]
     
-    # แสดงผลการ์ดความถี่ 6 ตัวสูงสุด
     st.subheader("📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
     
     html_parts = ['<div class="grid-container">']
@@ -258,7 +222,6 @@ if len(target_number) == 6 and target_number.isdigit():
     st.markdown("".join(html_parts), unsafe_allow_html=True)
     st.caption("ความถี้นี้นับจากผลลัพธ์การคำนวณครบทั้ง 15 สูตร และตัดสไลซ์แสดงผลเฉพาะ 6 อันดับสูงสุด")
 
-    # ส่วนจับคู่เลข 2 ตัว และ 3 ตัว
     st.divider()
     st.subheader("🎯 ชุดจับคู่เลขเด่น (จาก 6 ตัวบ่อยสุด)")
 
