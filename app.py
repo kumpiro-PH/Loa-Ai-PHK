@@ -1,6 +1,7 @@
 import streamlit as st
 from collections import Counter
 from datetime import datetime
+from itertools import combinations
 
 # ==========================================
 # 1. PAGE CONFIG & CUSTOM CSS (Responsive)
@@ -20,7 +21,7 @@ st.markdown("""
     /* Grid Container สำหรับจัดเลย์เอาต์การ์ดตัวเลข */
     .grid-container {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
         gap: 10px;
         margin-top: 15px;
         margin-bottom: 15px;
@@ -37,13 +38,13 @@ st.markdown("""
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     .stat-num {
-        font-size: 28px;
+        font-size: 26px;
         font-weight: 800;
         color: #1f2937;
         line-height: 1.2;
     }
     .stat-count {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
         color: #ef4444;
         background-color: #fee2e2;
@@ -51,6 +52,39 @@ st.markdown("""
         border-radius: 12px;
         display: inline-block;
         margin-top: 6px;
+    }
+
+    /* สไตล์กล่องจับคู่เลข 2 ตัว / 3 ตัว */
+    .pair-box {
+        background-color: #f8f9fa;
+        border-left: 4px solid #2563eb;
+        border-radius: 8px;
+        padding: 12px 15px;
+        margin-top: 10px;
+        margin-bottom: 15px;
+    }
+    .pair-title {
+        font-weight: bold;
+        color: #1e3a8a;
+        margin-bottom: 8px;
+        font-size: 15px;
+    }
+    .badge {
+        display: inline-block;
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin: 3px;
+        font-weight: bold;
+        color: #0f172a;
+        font-size: 14px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .badge-highlight {
+        background-color: #fef08a;
+        border-color: #eab308;
+        color: #854d0e;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -106,24 +140,62 @@ if len(target_number) == 6 and target_number.isdigit():
     # 3. เรียงลำดับตามความถี่จากมากไปน้อย
     ranked_digits = sorted(score.items(), key=lambda x: (-x[1], int(x[0])))
     
-    # 4. [สำคัญ] ตัดสไลซ์ข้อมูลอาเรย์ เลือกเฉพาะ 6 อันดับแรกที่มีความถี่สูงสุด
+    # 4. ตัดสไลซ์ข้อมูลอาเรย์ เลือกเฉพาะ 6 อันดับแรกที่มีความถี่สูงสุด
     top_6_digits = ranked_digits[:6]
+    digits_only = [item[0] for item in top_6_digits]
     
-    # 5. แสดงผลบนหน้าจอด้วย CSS Grid
+    # 5. แสดงผลการ์ดความถี่ 6 อันดับสูงสุด
     st.subheader("📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
     
-    cards_html = '<div class="grid-container">'
+    html_parts = ['<div class="grid-container">']
     for num, count in top_6_digits:
-        cards_html += f"""
-        <div class="stat-card">
-            <div class="stat-num">{num}</div>
-            <div class="stat-count">{count} ครั้ง</div>
-        </div>
-        """
-    cards_html += '</div>'
+        html_parts.append(f'<div class="stat-card"><div class="stat-num">{num}</div><div class="stat-count">{count} ครั้ง</div></div>')
+    html_parts.append('</div>')
     
-    st.markdown(cards_html, unsafe_allow_html=True)
+    st.markdown("".join(html_parts), unsafe_allow_html=True)
     st.caption("ความถี้นี้นับจากผลลัพธ์การคำนวณทั้งหมด และตัดสไลซ์แสดงผลเฉพาะ 6 อันดับสูงสุด")
+
+    # ==========================================
+    # 6. เพิ่มส่วนจับคู่เลข 2 ตัว และ 3 ตัว (New Feature)
+    # ==========================================
+    st.divider()
+    st.subheader("🎯 ชุดจับคู่เลขเด่น (จาก 6 ตัวบ่อยสุด)")
+
+    # จับคู่ 2 ตัว (15 คู่ชุด)
+    pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
+    # จับคู่ 3 ตัว (20 ชุด)
+    pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
+    
+    # ชุดวินเด่นสุด (3 ตัวความถี่สูงสุด)
+    top_3_straight = "".join(digits_only[:3])
+    top_2_straight = "".join(digits_only[:2])
+
+    # แสดงผลชุดเน้น
+    st.markdown(f"""
+    <div class="pair-box" style="border-left-color: #eab308; background-color: #fefce8;">
+        <div class="pair-title">🔥 ชุดเน้นพิเศษ (Top Pick จากอันดับ 1-3)</div>
+        <span class="badge badge-highlight">3 ตัวบน: {top_3_straight}</span>
+        <span class="badge badge-highlight">2 ตัวบน/ล่าง: {top_2_straight}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # แสดงผลชุด 2 ตัว
+    badges_2d = "".join([f'<span class="badge">{p}</span>' for p in pairs_2d])
+    st.markdown(f"""
+    <div class="pair-box">
+        <div class="pair-title">🎲 ชุด 2 ตัวจับคู่วิน (15 ชุด)</div>
+        {badges_2d}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # แสดงผลชุด 3 ตัว
+    badges_3d = "".join([f'<span class="badge">{p}</span>' for p in pairs_3d])
+    st.markdown(f"""
+    <div class="pair-box">
+        <div class="pair-title">🎲 ชุด 3 ตัวจับคู่วิน (20 ชุด)</div>
+        {badges_3d}
+    </div>
+    """, unsafe_allow_html=True)
 
 else:
     st.warning("⚠️ กรุณากรอกเลขฐานให้ครบ 6 หลัก")
