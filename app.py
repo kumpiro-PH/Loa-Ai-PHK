@@ -4,7 +4,7 @@ from datetime import datetime
 from itertools import combinations
 
 # ==========================================
-# 1. PAGE CONFIG & CUSTOM CSS (Responsive)
+# 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
 # ==========================================
 st.set_page_config(
     page_title="LAO AI PROFESSIONAL v4.0",
@@ -15,6 +15,12 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Sarabun', sans-serif;
+    }
+
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
@@ -27,64 +33,64 @@ st.markdown("""
         margin-bottom: 15px;
     }
     
-    /* สไตล์การ์ดแสดงผลความถี่ */
+    /* สไตล์การ์ดแสดงผลความถี่ - โทนสีฟ้า */
     .stat-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        border: 1px solid #e9ecef;
-        border-top: 4px solid #ff4b4b;
+        background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+        border: 1px solid #bae6fd;
+        border-top: 4px solid #0284c7;
         border-radius: 12px;
         padding: 12px 8px;
         text-align: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.08);
     }
     .stat-num {
-        font-size: 26px;
+        font-size: 28px;
         font-weight: 800;
-        color: #1f2937;
+        color: #0c4a6e;
         line-height: 1.2;
     }
     .stat-count {
         font-size: 12px;
         font-weight: 600;
-        color: #ef4444;
-        background-color: #fee2e2;
+        color: #0369a1;
+        background-color: #e0f2fe;
         padding: 2px 8px;
         border-radius: 12px;
         display: inline-block;
         margin-top: 6px;
     }
 
-    /* สไตล์กล่องจับคู่เลข 2 ตัว / 3 ตัว */
+    /* สไตล์กล่องจับคู่เลข 2 ตัว / 3 ตัว - โทนสีฟ้า */
     .pair-box {
-        background-color: #f8f9fa;
-        border-left: 4px solid #2563eb;
+        background-color: #f0f9ff;
+        border-left: 4px solid #0284c7;
         border-radius: 8px;
         padding: 12px 15px;
         margin-top: 10px;
         margin-bottom: 15px;
     }
     .pair-title {
-        font-weight: bold;
-        color: #1e3a8a;
+        font-weight: 700;
+        color: #0369a1;
         margin-bottom: 8px;
         font-size: 15px;
     }
     .badge {
         display: inline-block;
         background-color: #ffffff;
-        border: 1px solid #cbd5e1;
+        border: 1px solid #7dd3fc;
         border-radius: 6px;
         padding: 4px 10px;
         margin: 3px;
-        font-weight: bold;
-        color: #0f172a;
+        font-weight: 600;
+        color: #0c4a6e;
         font-size: 14px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
     }
     .badge-highlight {
-        background-color: #fef08a;
-        border-color: #eab308;
-        color: #854d0e;
+        background-color: #0284c7;
+        border-color: #0369a1;
+        color: #ffffff;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -156,30 +162,25 @@ if len(target_number) == 6 and target_number.isdigit():
     st.caption("ความถี้นี้นับจากผลลัพธ์การคำนวณทั้งหมด และตัดสไลซ์แสดงผลเฉพาะ 6 อันดับสูงสุด")
 
     # ==========================================
-    # 6. เพิ่มส่วนจับคู่เลข 2 ตัว และ 3 ตัว (New Feature)
+    # 6. ส่วนจับคู่เลข 2 ตัว และ 3 ตัว (Sky Blue Style)
     # ==========================================
     st.divider()
     st.subheader("🎯 ชุดจับคู่เลขเด่น (จาก 6 ตัวบ่อยสุด)")
 
-    # จับคู่ 2 ตัว (15 คู่ชุด)
     pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
-    # จับคู่ 3 ตัว (20 ชุด)
     pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
     
-    # ชุดวินเด่นสุด (3 ตัวความถี่สูงสุด)
     top_3_straight = "".join(digits_only[:3])
     top_2_straight = "".join(digits_only[:2])
 
-    # แสดงผลชุดเน้น
     st.markdown(f"""
-    <div class="pair-box" style="border-left-color: #eab308; background-color: #fefce8;">
-        <div class="pair-title">🔥 ชุดเน้นพิเศษ (Top Pick จากอันดับ 1-3)</div>
+    <div class="pair-box" style="border-left-color: #0284c7; background-color: #e0f2fe;">
+        <div class="pair-title">🔹 ชุดเน้นพิเศษ (Top Pick จากอันดับ 1-3)</div>
         <span class="badge badge-highlight">3 ตัวบน: {top_3_straight}</span>
         <span class="badge badge-highlight">2 ตัวบน/ล่าง: {top_2_straight}</span>
     </div>
     """, unsafe_allow_html=True)
 
-    # แสดงผลชุด 2 ตัว
     badges_2d = "".join([f'<span class="badge">{p}</span>' for p in pairs_2d])
     st.markdown(f"""
     <div class="pair-box">
@@ -188,7 +189,6 @@ if len(target_number) == 6 and target_number.isdigit():
     </div>
     """, unsafe_allow_html=True)
 
-    # แสดงผลชุด 3 ตัว
     badges_3d = "".join([f'<span class="badge">{p}</span>' for p in pairs_3d])
     st.markdown(f"""
     <div class="pair-box">
