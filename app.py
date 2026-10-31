@@ -1,97 +1,13 @@
 import streamlit as st
 from datetime import datetime
 from collections import Counter
-from itertools import combinations
 
-# ==========================================
-# 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
-# ==========================================
+# ตั้งค่าหน้าเว็บ
 st.set_page_config(
     page_title="Lao AI Professional v4.0",
     page_icon="🧠",
     layout="centered"
 )
-
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
-
-    html, body, [class*="css"] {
-        font-family: 'Sarabun', sans-serif;
-    }
-
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* Grid Container สำหรับการ์ดความถี่ */
-    .grid-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-        gap: 10px;
-        margin-top: 15px;
-        margin-bottom: 15px;
-    }
-    
-    .stat-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
-        border: 1px solid #bae6fd;
-        border-top: 4px solid #0284c7;
-        border-radius: 12px;
-        padding: 12px 6px;
-        text-align: center;
-        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.08);
-    }
-    .stat-num {
-        font-size: 26px;
-        font-weight: 800;
-        color: #0c4a6e;
-        line-height: 1.2;
-    }
-    .stat-count {
-        font-size: 12px;
-        font-weight: 600;
-        color: #0369a1;
-        background-color: #e0f2fe;
-        padding: 2px 8px;
-        border-radius: 12px;
-        display: inline-block;
-        margin-top: 6px;
-    }
-
-    /* กล่องจับคู่เลข */
-    .pair-box {
-        background-color: #f0f9ff;
-        border-left: 4px solid #0284c7;
-        border-radius: 8px;
-        padding: 12px 15px;
-        margin-top: 10px;
-        margin-bottom: 15px;
-    }
-    .pair-title {
-        font-weight: 700;
-        color: #0369a1;
-        margin-bottom: 8px;
-        font-size: 15px;
-    }
-    .badge {
-        display: inline-block;
-        background-color: #ffffff;
-        border: 1px solid #7dd3fc;
-        border-radius: 6px;
-        padding: 4px 8px;
-        margin: 3px;
-        font-weight: 600;
-        color: #0c4a6e;
-        font-size: 13px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-    }
-    .badge-highlight {
-        background-color: #0284c7;
-        border-color: #0369a1;
-        color: #ffffff;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 VERSION = "4.0 WEB MOBILE"
 
@@ -111,7 +27,7 @@ def get_daily_numbers():
     return daily_value, day_name
 
 # ==========================================
-# FORMULAS (1 - 15) ต้นฉบับของคุณ
+# FORMULAS (1 - 15)
 # ==========================================
 def formula1(number):
     a, b, c, d, e, f = [int(x) for x in number]
@@ -203,7 +119,7 @@ formulas = [
     ("Formula 13", formula13), ("Formula 14", formula14), ("Formula Neighbor", formula_neighbor)
 ]
 
-def calculate_formula_frequency(formula_outputs, top_n=6):
+def calculate_formula_frequency(formula_outputs, top_n=5):
     counter = Counter()
     for result in formula_outputs.values():
         number = str(result).strip()
@@ -224,9 +140,6 @@ st.markdown("---")
 # ช่องกรอกเลขฐาน
 base_input = st.text_input("ป้อนเลขฐาน 6 หลัก:", value="863206", max_chars=6)
 
-# ตัวเลือกจำนวนที่ต้องการแสดงผล (5 หรือ 6 ตัว)
-display_count = st.radio("เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:", [5, 6], index=1, horizontal=True)
-
 if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
     if len(base_input) != 6 or not base_input.isdigit():
         st.error("❌ กรุณากรอกเลขฐานให้ครบ 6 หลัก และต้องเป็นตัวเลขเท่านั้น")
@@ -240,62 +153,19 @@ if st.button("🚀 วิเคราะห์ข้อมูล", type="primary
             except Exception:
                 pass
 
-        # ใช้ค่า display_count ที่ผู้ใช้เลือก (5 หรือ 6)
-        counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=display_count)
+        counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=5)
         valid_count = sum(1 for v in formula_outputs.values() if len(str(v)) == 4 and str(v).isdigit())
-        digits_only = [item[0] for item in top_digits]
 
-        st.markdown(f"### 📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร (แสดง {display_count} อันดับ)")
+        st.markdown("### เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
         
-        # แสดงผลเป็นการ์ด Responsive โทนสีฟ้า
+        # แสดงผลแบบ Columns สวยงามบนมือถือ
         if top_digits:
-            html_parts = ['<div class="grid-container">']
-            for num, count in top_digits:
-                html_parts.append(f'<div class="stat-card"><div class="stat-num">{num}</div><div class="stat-count">{count} ครั้ง</div></div>')
-            html_parts.append('</div>')
-            st.markdown("".join(html_parts), unsafe_allow_html=True)
+            cols = st.columns(len(top_digits))
+            for i, (digit, count) in enumerate(top_digits):
+                with cols[i]:
+                    st.metric(label=f"{count} ครั้ง", value=str(digit))
 
-        st.caption(f"ความถี้นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count * 4} หลัก")
-
-        # ==========================================
-        # เพิ่มส่วนชุดจับคู่เลขเด่น 2 ตัว และ 3 ตัว (วิน)
-        # ==========================================
-        if len(digits_only) >= 3:
-            st.markdown("---")
-            st.markdown("### 🎯 ชุดจับคู่เลขเด่น (จากผลการตัดสไลซ์)")
-
-            pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
-            pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
-            
-            top_3_straight = "".join(digits_only[:3])
-            top_2_straight = "".join(digits_only[:2])
-
-            # แสดงชุดเน้นพิเศษ
-            st.markdown(f"""
-            <div class="pair-box" style="border-left-color: #0284c7; background-color: #e0f2fe;">
-                <div class="pair-title">🔹 ชุดเน้นพิเศษ (Top Pick จากอันดับ 1-3)</div>
-                <span class="badge badge-highlight">3 ตัว: {top_3_straight}</span>
-                <span class="badge badge-highlight">2 ตัว: {top_2_straight}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # แสดงชุด 2 ตัว
-            badges_2d = "".join([f'<span class="badge">{p}</span>' for p in pairs_2d])
-            st.markdown(f"""
-            <div class="pair-box">
-                <div class="pair-title">🎲 ชุด 2 ตัวจับคู่วิน ({len(pairs_2d)} ชุด)</div>
-                {badges_2d}
-            </div>
-            """, unsafe_allow_html=True)
-
-            # แสดงชุด 3 ตัว
-            badges_3d = "".join([f'<span class="badge">{p}</span>' for p in pairs_3d])
-            st.markdown(f"""
-            <div class="pair-box">
-                <div class="pair-title">🎲 ชุด 3 ตัวจับคู่วิน ({len(pairs_3d)} ชุด)</div>
-                {badges_3d}
-            </div>
-            """, unsafe_allow_html=True)
+        st.caption(f"ความถี่นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count * 4} หลัก ไม่ใช่สถิติผลหวยย้อนหลัง และมีอคติจากสูตรที่สร้างเลข 0 นำหน้าได้")
 
         st.markdown("---")
         st.markdown("### 3. เลขเด่นจากการรวมสูตร")
@@ -306,4 +176,4 @@ if st.button("🚀 วิเคราะห์ข้อมูล", type="primary
 
         st.write(f"• **กลุ่มเด่น:** {' – '.join(main_group) if main_group else '-'}")
         st.write(f"• **กลุ่มรอง:** {' – '.join(sub_group) if sub_group else '-'}")
-        st.write(f"• **เลขอื่นๆ:** {' – '.join(low_group) if low_group else '-'}")
+        st.markdown(f"• **เลขที่ปรากฏน้อยกว่า:** {' – '.join(low_group) if low_group else '-'}")
