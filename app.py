@@ -24,8 +24,17 @@ uploaded_file = st.sidebar.file_uploader("📂 อัพโหลดไฟล์
 
 if uploaded_file is not None:
     try:
-        df_csv = pd.read_csv(uploaded_file)
-        # บันทึกไฟล์ลงเครื่องชั่วคราวเพื่อใช้งานต่อ
+        df_temp = pd.read_csv(uploaded_file, nrows=1)
+        if 'day' in df_temp.columns and 'number' in df_temp.columns:
+            df_csv = pd.read_csv(uploaded_file)
+        else:
+            uploaded_file.seek(0)
+            df_csv = pd.read_csv(uploaded_file, header=None)
+            if df_csv.shape[1] >= 2:
+                df_csv.columns = ['day', 'number'] + [f'extra_{i}' for i in range(2, df_csv.shape[1])]
+            elif df_csv.shape[1] == 1:
+                df_csv.columns = ['day']
+        
         df_csv.to_csv(CSV_FILE_NAME, index=False)
         st.sidebar.success("อัพโหลดและบันทึกไฟล์ CSV สำเร็จ!")
     except Exception as e:
@@ -33,15 +42,23 @@ if uploaded_file is not None:
 
 # โหลดข้อมูลจากไฟล์ CSV หรือใช้ค่าเริ่มต้น
 if os.path.exists(CSV_FILE_NAME):
-    df_csv = pd.read_csv(CSV_FILE_NAME)
-    # ตรวจสอบโครงสร้างคอลัมน์ว่ามี day และ number หรือไม่
-    if 'day' in df_csv.columns and 'number' in df_csv.columns:
-        DAILY_NUMBERS = dict(zip(df_csv['day'], df_csv['number'].astype(str)))
-    else:
-        DAILY_NUMBERS = {
-            "Monday": "056787", "Tuesday": "657872", "Wednesday": "390768",
-            "Thursday": "897693", "Friday": "305687", "Saturday": "7890123", "Sunday": "8901234"
-        }
+    try:
+        df_temp = pd.read_csv(CSV_FILE_NAME, nrows=1)
+        if 'day' in df_temp.columns and 'number' in df_temp.columns:
+            df_csv = pd.read_csv(CSV_FILE_NAME)
+        else:
+            df_csv = pd.read_csv(CSV_FILE_NAME, header=None)
+            if df_csv.shape[1] >= 2:
+                df_csv.columns = ['day', 'number'] + [f'extra_{i}' for i in range(2, df_csv.shape[1])]
+            elif df_csv.shape[1] == 1:
+                df_csv.columns = ['day']
+                
+        if 'day' in df_csv.columns and 'number' in df_csv.columns:
+            DAILY_NUMBERS = dict(zip(df_csv['day'].astype(str), df_csv['number'].astype(str)))
+        else:
+            DAILY_NUMBERS = {}
+    except Exception:
+        DAILY_NUMBERS = {}
 else:
     DAILY_NUMBERS = {
         "Monday": "056787", "Tuesday": "657872", "Wednesday": "390768",
@@ -51,23 +68,34 @@ else:
 # 2. ตั้งค่าเลขประจำวัน (Manual Override)
 override_daily = st.sidebar.checkbox("แก้ไขเลขประจำวันเอง")
 day_name = datetime.now().strftime("%A")
-default_val = DAILY_NUMBERS.get(day_name, "00000")
+default_val = DAILY_NUMBERS.get(day_name, "657872")
 
 if override_daily:
     day_val = st.sidebar.text_input(f"เลขประจำวัน ({day_name}):", value=default_val, max_chars=10)
 else:
     day_val = default_val
 
-# 3. ช่องอัพเดทประกาศล่าสุด
+# 3. ช่องเพิ่มข้อมูลลงใน CSV โดยตรง
 st.sidebar.markdown("---")
-st.sidebar.subheader("📢 ประกาศ / อัพเดทข้อมูล")
-if "latest_update" not in st.session_state:
-    st.session_state.latest_update = "ระบบพร้อมใช้งาน วิเคราะห์สูตรแม่นยำด้วย AI"
+st.sidebar.subheader("📢 เพิ่มข้อมูลลง CSV")
+input_new_number = st.sidebar.text_input("ป้อนข้อมูลเลขฐานใหม่:", max_chars=10)
 
-input_update = st.sidebar.text_area("ข้อความประกาศ:", value=st.session_state.latest_update)
-if st.sidebar.button("💾 บันทึกประกาศ"):
-    st.session_state.latest_update = input_update
-    st.sidebar.success("บันทึกข้อความสำเร็จ!")
+if st.sidebar.button("💾 บันทึกข้อมูลลง CSV"):
+    if input_new_number:
+        if os.path.exists(CSV_FILE_NAME):
+            df_existing = pd.read_csv(CSV_FILE_NAME)
+            if 'day' not in df_existing.columns or 'number' not in df_existing.columns:
+                df_existing = pd.DataFrame(columns=['day', 'number'])
+        else:
+            df_existing = pd.DataFrame(columns=['day', 'number'])
+        
+        new_row = pd.DataFrame([{"day": day_name, "number": input_new_number}])
+        df_existing = pd.concat([df_existing, new_row], ignore_index=True)
+        df_existing.to_csv(CSV_FILE_NAME, index=False)
+        st.sidebar.success("บันทึกข้อมูลลงไฟล์ CSV สำเร็จ!")
+        st.rerun()
+    else:
+        st.sidebar.warning("⚠️ กรุณากรอกข้อมูลก่อนบันทึก")
 
 # ==========================================
 # FORMULAS (1 - 15)
@@ -180,10 +208,7 @@ def calculate_formula_frequency(formula_outputs, top_n=5):
 st.title("🧠 LAO AI PROFESSIONAL")
 st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name} (เลขประจำวัน: {day_val})")
 
-# แสดงกล่องประกาศล่าสุด
-st.info(f"📢 **ประกาศล่าสุด:** {st.session_state.latest_update}")
-
-# แสดงข้อมูลจาก CSV (ถ้ามี) แบบพับเก็บได้
+# แสดงข้อมูลจาก CSV แบบพับเก็บได้
 with st.expander("📂 ตรวจสอบข้อมูลตาราง CSV ประจำวัน"):
     if os.path.exists(CSV_FILE_NAME):
         st.dataframe(pd.read_csv(CSV_FILE_NAME), use_container_width=True)
@@ -213,7 +238,6 @@ if st.button("🚀 วิเคราะห์ข้อมูล", type="primary
 
         st.markdown("### 📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
         
-        # แสดงผลแบบ Columns สวยงามบนมือถือ
         if top_digits:
             cols = st.columns(len(top_digits))
             for i, (digit, count) in enumerate(top_digits):
