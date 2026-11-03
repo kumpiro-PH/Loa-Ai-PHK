@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import os
 from datetime import datetime
 from collections import Counter
 
@@ -11,23 +12,32 @@ st.set_page_config(
 )
 
 VERSION = "4.0 WEB MOBILE"
+CSV_FILE_NAME = "history_lao.csv"
 
-# 🔗 ใส่ลิงก์ Raw จาก GitHub ของคุณที่นี่
-# ตัวอย่าง: "https://raw.githubusercontent.com/ชื่อผู้ใช้ของคุณ/ชื่อคลัง/main/daily_data.csv"
-GITHUB_CSV_URL = "https://raw.githubusercontent.com/kumpiro-PH/lao-ai-pro/main/daily_data.csv"
+# โหลดข้อมูลจากไฟล์ CSV ประวัติ (history_lao.csv)
+@st.cache_data
+def load_history_csv(filename):
+    if os.path.exists(filename):
+        try:
+            # อ่านไฟล์แบบไม่มี Header เพื่อเก็บข้อมูลทั้งหมดรวมถึงแถวแรก
+            df = pd.read_csv(filename, header=None)
+            return df
+        except Exception:
+            pass
+    return None
 
-@st.cache_data(ttl=60) # แคชข้อมูลไว้ 60 วินาที เพื่อให้โหลดไวและอัปเดตตาม GitHub ทันที
-def load_github_csv(url):
-    try:
-        df = pd.read_csv(url)
-        if 'day' in df.columns and 'number' in df.columns:
-            return df, dict(zip(df['day'].astype(str), df['number'].astype(str)))
-    except Exception:
-        pass
-    return None, {}
+df_history = load_history_csv(CSV_FILE_NAME)
 
-# โหลดข้อมูล CSV จาก GitHub
-df_csv, DAILY_NUMBERS = load_github_csv(GITHUB_CSV_URL)
+# ดึงค่าเลขฐานล่าสุดจากแถวสุดท้ายของไฟล์ CSV มาเป็นค่าเริ่มต้น (ถ้ามี)
+default_base = "863206"
+if df_history is not None and not df_history.empty:
+    # สมมติให้คอลัมน์ที่ 1 หรือ 0 เป็นเลขฐาน
+    last_row = df_history.iloc[-1]
+    for val in last_row:
+        val_str = str(val).strip()
+        if val_str.isdigit() and len(val_str) >= 6:
+            default_base = val_str
+            break
 
 # ==========================================
 # SIDEBAR: จัดการข้อมูล & ตั้งค่า
@@ -36,7 +46,7 @@ st.sidebar.header("⚙️ ตั้งค่าข้อมูล")
 override_daily = st.sidebar.checkbox("แก้ไขเลขประจำวันเอง")
 
 day_name = datetime.now().strftime("%A")
-default_val = DAILY_NUMBERS.get(day_name, "657872")
+default_val = "657872"
 
 if override_daily:
     day_val = st.sidebar.text_input(f"เลขประจำวัน ({day_name}):", value=default_val, max_chars=10)
@@ -47,7 +57,7 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.subheader("📢 ประกาศ / อัพเดทข้อมูล")
 if "latest_update" not in st.session_state:
-    st.session_state.latest_update = "ระบบเชื่อมต่อข้อมูล CSV จาก GitHub สำเร็จ"
+    st.session_state.latest_update = "ระบบเชื่อมต่อข้อมูลจาก history_lao.csv สำเร็จ"
 
 input_update = st.sidebar.text_area("ข้อความประกาศ:", value=st.session_state.latest_update)
 if st.sidebar.button("💾 บันทึกประกาศ"):
@@ -168,17 +178,17 @@ st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name} (เล
 # แสดงประกาศล่าสุด
 st.info(f"📢 **ประกาศล่าสุด:** {st.session_state.latest_update}")
 
-# แสดงตารางข้อมูล CSV จาก GitHub แบบพับเก็บได้
-with st.expander("📂 ตรวจสอบข้อมูลตาราง CSV จาก GitHub"):
-    if df_csv is not None:
-        st.dataframe(df_csv, use_container_width=True)
+# แสดงตารางประวัติจาก history_lao.csv แบบพับเก็บได้
+with st.expander("📂 ดูประวัติข้อมูลสถิติย้อนหลัง (history_lao.csv)"):
+    if df_history is not None:
+        st.dataframe(df_history, use_container_width=True)
     else:
-        st.warning("⚠️ ยังไม่พบไฟล์ CSV บน GitHub หรือลิงก์ URL ไม่ถูกต้อง")
+        st.warning("⚠️ ยังไม่พบไฟล์ history_lao.csv ในโฟลเดอร์")
 
 st.markdown("---")
 
-# ช่องกรอกเลขฐาน
-base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", value="863206", max_chars=10)
+# ช่องกรอกเลขฐาน (ดึงค่าเริ่มต้นจากแถวสุดท้ายของ CSV)
+base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", value=default_base, max_chars=10)
 
 if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
     if len(base_input) < 6 or not base_input.isdigit():
