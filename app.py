@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from datetime import datetime
 from collections import Counter
 
@@ -11,16 +12,22 @@ st.set_page_config(
 
 VERSION = "4.0 WEB MOBILE"
 
-# ค่าตั้งต้นเลขประจำวัน (ใช้ Dictionary ภายในโค้ดโดยตรง ไม่ใช้ CSV)
-DEFAULT_DAILY_NUMBERS = {
-    "Monday": "056787",
-    "Tuesday": "657872",
-    "Wednesday": "390768",
-    "Thursday": "897693",
-    "Friday": "305687",
-    "Saturday": "7890123",
-    "Sunday": "8901234"
-}
+# 🔗 ใส่ลิงก์ Raw จาก GitHub ของคุณที่นี่
+# ตัวอย่าง: "https://raw.githubusercontent.com/ชื่อผู้ใช้ของคุณ/ชื่อคลัง/main/daily_data.csv"
+GITHUB_CSV_URL = "https://raw.githubusercontent.com/kumpiro-PH/lao-ai-pro/main/daily_data.csv"
+
+@st.cache_data(ttl=60) # แคชข้อมูลไว้ 60 วินาที เพื่อให้โหลดไวและอัปเดตตาม GitHub ทันที
+def load_github_csv(url):
+    try:
+        df = pd.read_csv(url)
+        if 'day' in df.columns and 'number' in df.columns:
+            return df, dict(zip(df['day'].astype(str), df['number'].astype(str)))
+    except Exception:
+        pass
+    return None, {}
+
+# โหลดข้อมูล CSV จาก GitHub
+df_csv, DAILY_NUMBERS = load_github_csv(GITHUB_CSV_URL)
 
 # ==========================================
 # SIDEBAR: จัดการข้อมูล & ตั้งค่า
@@ -29,18 +36,18 @@ st.sidebar.header("⚙️ ตั้งค่าข้อมูล")
 override_daily = st.sidebar.checkbox("แก้ไขเลขประจำวันเอง")
 
 day_name = datetime.now().strftime("%A")
-default_val = DEFAULT_DAILY_NUMBERS.get(day_name, "657872")
+default_val = DAILY_NUMBERS.get(day_name, "657872")
 
 if override_daily:
     day_val = st.sidebar.text_input(f"เลขประจำวัน ({day_name}):", value=default_val, max_chars=10)
 else:
     day_val = default_val
 
-# ช่องอัพเดทประกาศล่าสุด
+# ช่องอัพเดทประกาศล่าสุดใน Sidebar
 st.sidebar.markdown("---")
 st.sidebar.subheader("📢 ประกาศ / อัพเดทข้อมูล")
 if "latest_update" not in st.session_state:
-    st.session_state.latest_update = "ระบบพร้อมใช้งาน วิเคราะห์สูตรแม่นยำด้วย AI"
+    st.session_state.latest_update = "ระบบเชื่อมต่อข้อมูล CSV จาก GitHub สำเร็จ"
 
 input_update = st.sidebar.text_area("ข้อความประกาศ:", value=st.session_state.latest_update)
 if st.sidebar.button("💾 บันทึกประกาศ"):
@@ -158,8 +165,15 @@ def calculate_formula_frequency(formula_outputs, top_n=5):
 st.title("🧠 LAO AI PROFESSIONAL")
 st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name} (เลขประจำวัน: {day_val})")
 
-# แสดงกล่องประกาศล่าสุด
+# แสดงประกาศล่าสุด
 st.info(f"📢 **ประกาศล่าสุด:** {st.session_state.latest_update}")
+
+# แสดงตารางข้อมูล CSV จาก GitHub แบบพับเก็บได้
+with st.expander("📂 ตรวจสอบข้อมูลตาราง CSV จาก GitHub"):
+    if df_csv is not None:
+        st.dataframe(df_csv, use_container_width=True)
+    else:
+        st.warning("⚠️ ยังไม่พบไฟล์ CSV บน GitHub หรือลิงก์ URL ไม่ถูกต้อง")
 
 st.markdown("---")
 
