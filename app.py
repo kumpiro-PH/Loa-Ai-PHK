@@ -11,7 +11,8 @@ st.set_page_config(
 
 VERSION = "4.0 WEB MOBILE"
 
-DAILY_NUMBERS = {
+# ค่าตั้งต้นเลขประจำวัน
+DEFAULT_DAILY_NUMBERS = {
     "Monday": "056787",
     "Tuesday": "657872",
     "Wednesday": "390768",
@@ -21,30 +22,39 @@ DAILY_NUMBERS = {
     "Sunday": "8901234"
 }
 
-def get_daily_numbers():
-    day_name = datetime.now().strftime("%A")
-    daily_value = DAILY_NUMBERS.get(day_name, "00000")
-    return daily_value, day_name
+# ==========================================
+# SIDEBAR: จัดการข้อมูล / ตั้งค่า
+# ==========================================
+st.sidebar.header("⚙️ ตั้งค่าข้อมูล")
+override_daily = st.sidebar.checkbox("แก้ไขเลขประจำวันเอง")
+
+day_name = datetime.now().strftime("%A")
+default_val = DEFAULT_DAILY_NUMBERS.get(day_name, "00000")
+
+if override_daily:
+    day_val = st.sidebar.text_input(f"เลขประจำวัน ({day_name}):", value=default_val, max_chars=10)
+else:
+    day_val = default_val
 
 # ==========================================
 # FORMULAS (1 - 15)
 # ==========================================
 def formula1(number):
-    a, b, c, d, e, f = [int(x) for x in number]
+    a, b, c, d, e, f = [int(x) for x in number[:6]]
     value = ((a+b+c)*(d+e+f)+(a*f)+(c*e)) % 10000
     res = f"{value:04d}"
     return formula5(number) if res == "0000" else res
 
 def formula2(number):
-    a, b, c, d, e, f = [int(x) for x in number]
+    a, b, c, d, e, f = [int(x) for x in number[:6]]
     return f"{((a*b)+(c*d)+(e*f)) % 10000:04d}"
 
 def formula3(number):
-    a, b, c, d, e, f = [int(x) for x in number]
+    a, b, c, d, e, f = [int(x) for x in number[:6]]
     return f"{((a+b+c+d+e+f)*111) % 10000:04d}"
 
 def formula4(number):
-    a, b, c, d, e, f = [int(x) for x in number]
+    a, b, c, d, e, f = [int(x) for x in number[:6]]
     value = ((a+b+c)*(d+e+f)) % 10000
     res = f"{value:04d}"
     return formula5(number) if res == "0000" else res
@@ -61,23 +71,23 @@ def formula5(number):
     return "".join(str(digit) for digit, _ in ranking[:4]).zfill(4)
 
 def formula6(number):
-    a, b, c, d, e, f = [int(x) for x in number]
+    a, b, c, d, e, f = [int(x) for x in number[:6]]
     return f"{((a+c+e)*(b+d+f)) % 10000:04d}"
 
 def formula7(number):
-    a, b, c, d, e, f = [int(x) for x in number]
+    a, b, c, d, e, f = [int(x) for x in number[:6]]
     return f"{((a*10+b)+(e*10+f)) % 10000:04d}"
 
 def formula8(number):
-    a, b, c, d, e, f = [int(x) for x in number]
+    a, b, c, d, e, f = [int(x) for x in number[:6]]
     return f"{((a+b+c+d+e+f)*123) % 10000:04d}"
 
 def formula9(number):
-    a, b, c, d, e, f = [int(x) for x in number]
+    a, b, c, d, e, f = [int(x) for x in number[:6]]
     return f"{abs((a*100+b*10+c)-(d*100+e*10+f)) % 10000:04d}"
 
 def formula10(number):
-    a, b, c, d, e, f = [int(x) for x in number]
+    a, b, c, d, e, f = [int(x) for x in number[:6]]
     return f"{((a*f)+(b*e)+(c*d)) % 10000:04d}"
 
 def formula11(number):
@@ -93,12 +103,14 @@ def formula11(number):
     return ranking[0][0] + ranking[1][0]
 
 def formula12(number):
-    _, _, _, d, e, _ = [int(x) for x in number]
+    num_list = [int(x) for x in number]
+    d, e = num_list[3], num_list[4]
     base = (d + e) % 10
     return f"{base}{(base+1)%10}{(base+2)%10}{(base+3)%10}"
 
 def formula13(number):
-    a, _, c, _, _, f = [int(x) for x in number]
+    num_list = [int(x) for x in number]
+    a, c, f = num_list[0], num_list[2], num_list[5]
     return f"{((a + c + f) * 9) % 10000:04d}"
 
 def formula14(number):
@@ -106,7 +118,8 @@ def formula14(number):
     return f"{f}{f}{(f+1)%10}{(f+1)%10}"
 
 def formula_neighbor(number):
-    pos4, pos6 = int(number[3]), int(number[5])
+    num_list = [int(x) for x in number]
+    pos4, pos6 = num_list[3], num_list[5]
     res_front = (pos6 - 1) % 10
     res_back_start = (pos4 + 2) % 10
     return f"{res_front}{res_back_start}{(res_back_start+1)%10}{(res_back_start+2)%10}"
@@ -123,7 +136,7 @@ def calculate_formula_frequency(formula_outputs, top_n=5):
     counter = Counter()
     for result in formula_outputs.values():
         number = str(result).strip()
-        if len(number) == 4 and number.isdigit():
+        if len(number) >= 4 and number.isdigit():
             counter.update(number)
     ranking = sorted(counter.items(), key=lambda item: (-item[1], int(item[0])))
     return counter, ranking[:top_n]
@@ -132,17 +145,16 @@ def calculate_formula_frequency(formula_outputs, top_n=5):
 # STREAMLIT UI
 # ==========================================
 st.title("🧠 LAO AI PROFESSIONAL")
-day_val, day_name = get_daily_numbers()
 st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name} (เลขประจำวัน: {day_val})")
 
 st.markdown("---")
 
 # ช่องกรอกเลขฐาน
-base_input = st.text_input("ป้อนเลขฐาน 6 หลัก:", value="863206", max_chars=6)
+base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", value="863206", max_chars=10)
 
 if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
-    if len(base_input) != 6 or not base_input.isdigit():
-        st.error("❌ กรุณากรอกเลขฐานให้ครบ 6 หลัก และต้องเป็นตัวเลขเท่านั้น")
+    if len(base_input) < 6 or not base_input.isdigit():
+        st.error("❌ กรุณากรอกเลขฐานอย่างน้อย 6 หลัก และต้องเป็นตัวเลขเท่านั้น")
     else:
         formula_outputs = {}
         for name, func in formulas:
@@ -154,9 +166,9 @@ if st.button("🚀 วิเคราะห์ข้อมูล", type="primary
                 pass
 
         counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=5)
-        valid_count = sum(1 for v in formula_outputs.values() if len(str(v)) == 4 and str(v).isdigit())
+        valid_count = sum(1 for v in formula_outputs.values() if len(str(v)) >= 4 and str(v).isdigit())
 
-        st.markdown("### เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
+        st.markdown("### 📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
         
         # แสดงผลแบบ Columns สวยงามบนมือถือ
         if top_digits:
@@ -165,10 +177,10 @@ if st.button("🚀 วิเคราะห์ข้อมูล", type="primary
                 with cols[i]:
                     st.metric(label=f"{count} ครั้ง", value=str(digit))
 
-        st.caption(f"ความถี่นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count * 4} หลัก ไม่ใช่สถิติผลหวยย้อนหลัง และมีอคติจากสูตรที่สร้างเลข 0 นำหน้าได้")
+        st.caption(f"ความถี่นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count} สูตร")
 
         st.markdown("---")
-        st.markdown("### 3. เลขเด่นจากการรวมสูตร")
+        st.markdown("### 🎯 เลขเด่นจากการรวมสูตร")
         
         main_group = [d for d, c in top_digits if c >= 10]
         sub_group = [d for d, c in top_digits if 5 <= c < 10]
