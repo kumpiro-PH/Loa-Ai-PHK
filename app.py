@@ -36,6 +36,19 @@ if override_daily:
 else:
     day_val = default_val
 
+st.sidebar.markdown("---")
+st.sidebar.subheader("📢 อัพเดทข้อมูลล่าสุด / ประกาศ")
+
+# ใช้ Session State เพื่อเก็บข้อความอัพเดทให้คงอยู่ตลอดการใช้งานในเซสชันนี้
+if "latest_update" not in st.session_state:
+    st.session_state.latest_update = "ระบบพร้อมใช้งาน วิเคราะห์สูตรแม่นยำด้วย AI"
+
+# ช่องกรอกข้อความอัพเดทผ่าน Sidebar
+input_update = st.sidebar.text_area("ข้อความประกาศ/อัพเดท:", value=st.session_state.latest_update)
+if st.sidebar.button("💾 บันทึกการอัพเดท"):
+    st.session_state.latest_update = input_update
+    st.sidebar.success("อัพเดทข้อมูลสำเร็จ!")
+
 # ==========================================
 # FORMULAS (1 - 15)
 # ==========================================
@@ -146,6 +159,9 @@ def calculate_formula_frequency(formula_outputs, top_n=5):
 # ==========================================
 st.title("🧠 LAO AI PROFESSIONAL")
 st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name} (เลขประจำวัน: {day_val})")
+
+# แสดงกล่องข้อความอัพเดทล่าสุดบนหน้าจอหลัก
+st.info(f"📢 **ประกาศ/อัพเดทล่าสุด:** {st.session_state.latest_update}")
 
 st.markdown("---")
 
