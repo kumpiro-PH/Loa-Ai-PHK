@@ -1,4 +1,6 @@
 import streamlit as st
+import pandas as pd
+import os
 from datetime import datetime
 from collections import Counter
 
@@ -10,48 +12,77 @@ st.set_page_config(
 )
 
 VERSION = "4.0 WEB MOBILE"
-
-# ค่าตั้งต้นเลขประจำวัน
-DEFAULT_DAILY_NUMBERS = {
-    "Monday": "056787",
-    "Tuesday": "657872",
-    "Wednesday": "390768",
-    "Thursday": "897693",
-    "Friday": "305687",
-    "Saturday": "7890123",
-    "Sunday": "8901234"
-}
+CSV_FILE_NAME = "daily_data.csv"
 
 # ==========================================
-# SIDEBAR: จัดการข้อมูล / ตั้งค่า
+# จัดการข้อมูล CSV และ Session State
 # ==========================================
-st.sidebar.header("⚙️ ตั้งค่าข้อมูล")
+st.sidebar.header("⚙️ จัดการข้อมูล & ตั้งค่า")
+
+# 1. ระบบอัพโหลดไฟล์ CSV ผ่านหน้าเว็บ
+uploaded_file = st.sidebar.file_uploader("📂 อัพโหลดไฟล์ CSV ประจำวัน", type=["csv"])
+
+if uploaded_file is not None:
+    try:
+        df_csv = pd.read_csv(uploaded_file)
+        # บันทึกไฟล์ลงเครื่องชั่วคราวเพื่อใช้งานต่อ
+        df_csv.to_csv(CSV_FILE_NAME, index=False)
+        st.sidebar.success("อัพโหลดและบันทึกไฟล์ CSV สำเร็จ!")
+    except Exception as e:
+        st.sidebar.error(f"❌ เกิดข้อผิดพลาดในการอ่านไฟล์: {e}")
+
+# โหลดข้อมูลจากไฟล์ CSV หรือใช้ค่าเริ่มต้น
+if os.path.exists(CSV_FILE_NAME):
+    df_csv = pd.read_csv(CSV_FILE_NAME)
+    # ตรวจสอบโครงสร้างคอลัมน์ว่ามี day และ number หรือไม่
+    if 'day' in df_csv.columns and 'number' in df_csv.columns:
+        DAILY_NUMBERS = dict(zip(df_csv['day'], df_csv['number'].astype(str)))
+    else:
+        DAILY_NUMBERS = {
+            "Monday": "056787", "Tuesday": "657872", "Wednesday": "390768",
+            "Thursday": "897693", "Friday": "305687", "Saturday": "7890123", "Sunday": "8901234"
+        }
+else:
+    DAILY_NUMBERS = {
+        "Monday": "056787", "Tuesday": "657872", "Wednesday": "390768",
+        "Thursday": "897693", "Friday": "305687", "Saturday": "7890123", "Sunday": "8901234"
+    }
+
+# 2. ตั้งค่าเลขประจำวัน (Manual Override)
 override_daily = st.sidebar.checkbox("แก้ไขเลขประจำวันเอง")
-
 day_name = datetime.now().strftime("%A")
-default_val = DEFAULT_DAILY_NUMBERS.get(day_name, "00000")
+default_val = DAILY_NUMBERS.get(day_name, "00000")
 
 if override_daily:
     day_val = st.sidebar.text_input(f"เลขประจำวัน ({day_name}):", value=default_val, max_chars=10)
 else:
     day_val = default_val
 
+# 3. ช่องอัพเดทประกาศล่าสุด
 st.sidebar.markdown("---")
-st.sidebar.subheader("📢 อัพเดทข้อมูลล่าสุด / ประกาศ")
-
-# ใช้ Session State เพื่อเก็บข้อความอัพเดทให้คงอยู่ตลอดการใช้งานในเซสชันนี้
+st.sidebar.subheader("📢 ประกาศ / อัพเดทข้อมูล")
 if "latest_update" not in st.session_state:
     st.session_state.latest_update = "ระบบพร้อมใช้งาน วิเคราะห์สูตรแม่นยำด้วย AI"
 
-# ช่องกรอกข้อความอัพเดทผ่าน Sidebar
-input_update = st.sidebar.text_area("ข้อความประกาศ/อัพเดท:", value=st.session_state.latest_update)
-if st.sidebar.button("💾 บันทึกการอัพเดท"):
+input_update = st.sidebar.text_area("ข้อความประกาศ:", value=st.session_state.latest_update)
+if st.sidebar.button("💾 บันทึกประกาศ"):
     st.session_state.latest_update = input_update
-    st.sidebar.success("อัพเดทข้อมูลสำเร็จ!")
+    st.sidebar.success("บันทึกข้อความสำเร็จ!")
 
 # ==========================================
 # FORMULAS (1 - 15)
 # ==========================================
+def formula5(number):
+    digits = [int(x) for x in number]
+    score = Counter()
+    counter = Counter(digits)
+    for digit, count in counter.items(): score[digit] += count * 5
+    for i in range(len(digits) - 1): score[(digits[i] + digits[i + 1]) % 10] += 2
+    for i in range(len(digits) - 1): score[(digits[i] * digits[i + 1]) % 10] += 2
+    for i in range(len(digits) - 1): score[abs(digits[i] - digits[i + 1])] += 1
+    ranking = sorted(score.items(), key=lambda x: (-x[1], x[0]))
+    return "".join(str(digit) for digit, _ in ranking[:4]).zfill(4)
+
 def formula1(number):
     a, b, c, d, e, f = [int(x) for x in number[:6]]
     value = ((a+b+c)*(d+e+f)+(a*f)+(c*e)) % 10000
@@ -71,17 +102,6 @@ def formula4(number):
     value = ((a+b+c)*(d+e+f)) % 10000
     res = f"{value:04d}"
     return formula5(number) if res == "0000" else res
-
-def formula5(number):
-    digits = [int(x) for x in number]
-    score = Counter()
-    counter = Counter(digits)
-    for digit, count in counter.items(): score[digit] += count * 5
-    for i in range(len(digits) - 1): score[(digits[i] + digits[i + 1]) % 10] += 2
-    for i in range(len(digits) - 1): score[(digits[i] * digits[i + 1]) % 10] += 2
-    for i in range(len(digits) - 1): score[abs(digits[i] - digits[i + 1])] += 1
-    ranking = sorted(score.items(), key=lambda x: (-x[1], x[0]))
-    return "".join(str(digit) for digit, _ in ranking[:4]).zfill(4)
 
 def formula6(number):
     a, b, c, d, e, f = [int(x) for x in number[:6]]
@@ -155,13 +175,20 @@ def calculate_formula_frequency(formula_outputs, top_n=5):
     return counter, ranking[:top_n]
 
 # ==========================================
-# STREAMLIT UI
+# STREAMLIT UI (หน้าจอหลัก)
 # ==========================================
 st.title("🧠 LAO AI PROFESSIONAL")
 st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name} (เลขประจำวัน: {day_val})")
 
-# แสดงกล่องข้อความอัพเดทล่าสุดบนหน้าจอหลัก
-st.info(f"📢 **ประกาศ/อัพเดทล่าสุด:** {st.session_state.latest_update}")
+# แสดงกล่องประกาศล่าสุด
+st.info(f"📢 **ประกาศล่าสุด:** {st.session_state.latest_update}")
+
+# แสดงข้อมูลจาก CSV (ถ้ามี) แบบพับเก็บได้
+with st.expander("📂 ตรวจสอบข้อมูลตาราง CSV ประจำวัน"):
+    if os.path.exists(CSV_FILE_NAME):
+        st.dataframe(pd.read_csv(CSV_FILE_NAME), use_container_width=True)
+    else:
+        st.warning("ยังไม่มีไฟล์ CSV ถูกอัพโหลด ระบบกำลังใช้ค่าเริ่มต้นมาตรฐาน")
 
 st.markdown("---")
 
