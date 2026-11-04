@@ -15,21 +15,13 @@ VERSION = "4.0 WEB MOBILE"
 CSV_FILE_NAME = "history_lao.csv"
 
 # ==========================================
-# SIDEBAR: จัดการข้อมูล & ตั้งค่า
+# SIDEBAR: จัดการข้อมูล & ตั้งค่า (เพิ่มระบบอัปเดตผ่านหน้าเว็บ)
 # ==========================================
-st.sidebar.header("⚙️ จัดการข้อมูล & ตั้งค่า")
+st.sidebar.header("⚙️ จัดการข้อมูล")
 
-# ช่องอัปโหลดไฟล์ history_lao.csv ผ่านหน้าเว็บ
-uploaded_csv = st.sidebar.file_uploader("📂 อัปโหลดไฟล์ history_lao.csv", type=["csv"])
-
-# ฟังก์ชันโหลดข้อมูล CSV พร้อมระบบรีเฟรช
+# ฟังก์ชันโหลดข้อมูล CSV
 @st.cache_data(ttl=1)
-def load_csv_data(file_obj, filename):
-    if file_obj is not None:
-        try:
-            return pd.read_csv(file_obj, header=None)
-        except Exception:
-            pass
+def load_csv_data(filename):
     if os.path.exists(filename):
         try:
             return pd.read_csv(filename, header=None)
@@ -40,16 +32,36 @@ def load_csv_data(file_obj, filename):
         1: ["1489", "2679", "172", "2415", "8155"]
     })
 
-# ปุ่มรีเฟรชข้อมูลล่าสุด
+df_history = load_csv_data(CSV_FILE_NAME)
+
+# ➕ เมนูเพิ่มข้อมูล/อัปเดตงวดใหม่ ผ่านหน้าเว็บ (แบบแอปฮานอย)
+with st.sidebar.expander("➕ 1. อัปเดตผลรางวัล (งวดใหม่)", expanded=False):
+    new_6digit = st.text_input("กรอกเลข 6 หลักงวดล่าสุด:", max_chars=6)
+    if st.button("💾 บันทึกงวดใหม่ลงระบบ"):
+        if len(new_6digit) == 6 and new_6digit.isdigit():
+            new_4digit = new_6digit[-4:]
+            new_row = pd.DataFrame([[new_6digit, new_4digit]])
+            
+            # บันทึกต่อท้ายลงไฟล์ history_lao.csv
+            new_row.to_csv(CSV_FILE_NAME, mode='a', header=False, index=False)
+            
+            # ล้างแคชเพื่อให้แอปอ่านข้อมูลใหม่ทันที
+            st.cache_data.clear()
+            if "base_number" in st.session_state:
+                del st.session_state.base_number
+            st.success(f"บันทึกเลข {new_6digit} เรียบร้อย!")
+            st.rerun()
+        else:
+            st.error("กรุณากรอกตัวเลขให้ครบ 6 หลัก")
+
+# ปุ่มรีเฟรชข้อมูล
 if st.sidebar.button("🔄 รีเฟรชข้อมูล CSV"):
     st.cache_data.clear()
     if "base_number" in st.session_state:
         del st.session_state.base_number
     st.rerun()
 
-df_history = load_csv_data(uploaded_csv, CSV_FILE_NAME)
-
-# ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV เสมอ
+# 💡 ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV เสมอ
 latest_base = "738155"
 if df_history is not None and not df_history.empty:
     for row_idx in range(len(df_history) - 1, -1, -1):
@@ -215,14 +227,12 @@ if "base_number" not in st.session_state or st.session_state.get("last_loaded_ba
 
 base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", key="base_number", max_chars=10)
 
-# 🚀 ปุ่มกดวิเคราะห์ (คำนวณใหม่สดๆ ทุกครั้งที่กด โดยล้างค่าคำนวณเก่าทิ้ง)
+# 🚀 ปุ่มกดวิเคราะห์ (คำนวณใหม่สดๆ ทุกครั้งที่กด)
 if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
     if len(base_input) < 6 or not base_input.isdigit():
         st.error("❌ กรุณากรอกเลขฐานอย่างน้อย 6 หลัก และต้องเป็นตัวเลขเท่านั้น")
     else:
-        # เคลียร์ตัวแปรเก็บผลลัพธ์เก่า เพื่อให้คำนวณใหม่ทั้งหมด
         formula_outputs = {}
-        
         for name, func in formulas:
             try:
                 res = str(func(base_input)).strip()
@@ -231,7 +241,6 @@ if st.button("🚀 วิเคราะห์ข้อมูล", type="primary
             except Exception:
                 pass
 
-        # คำนวณความถี่ใหม่ทันทีจากผลลัพธ์ชุดปัจจุบัน
         counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=5)
         valid_count = sum(1 for v in formula_outputs.values() if len(str(v)) >= 4 and str(v).isdigit())
 
