@@ -12,35 +12,43 @@ st.set_page_config(
 )
 
 VERSION = "4.0 WEB MOBILE"
+CSV_FILE_NAME = "history_lao.csv"
 
 # ==========================================
-# SIDEBAR: จัดการข้อมูลแบบง่าย (อัปโหลดไฟล์ CSV)
+# SIDEBAR: จัดการข้อมูล & ตั้งค่า
 # ==========================================
-st.sidebar.header("⚙️ จัดการข้อมูล")
-uploaded_file = st.sidebar.file_uploader("📂 อัปโหลดไฟล์ history_lao.csv", type=["csv"])
+st.sidebar.header("⚙️ จัดการข้อมูล & ตั้งค่า")
 
-# ฟังก์ชันโหลดข้อมูล (รองรับไฟล์อัปโหลด หรือไฟล์ในเครื่อง หรือข้อมูลสำรอง)
-@st.cache_data
-def load_csv_data(file):
-    if file is not None:
+# ช่องอัปโหลดไฟล์ history_lao.csv ผ่านหน้าเว็บ (ทางเลือกเสริมถ้าไฟล์ไม่อยู่ในโฟลเดอร์)
+uploaded_csv = st.sidebar.file_uploader("📂 อัปโหลดไฟล์ history_lao.csv", type=["csv"])
+
+# ฟังก์ชันโหลดข้อมูล CSV พร้อมระบบรีเฟรช
+@st.cache_data(ttl=1)
+def load_csv_data(file_obj, filename):
+    if file_obj is not None:
         try:
-            return pd.read_csv(file, header=None)
+            return pd.read_csv(file_obj, header=None)
         except Exception:
             pass
-    if os.path.exists("history_lao.csv"):
+    if os.path.exists(filename):
         try:
-            return pd.read_csv("history_lao.csv", header=None)
+            return pd.read_csv(filename, header=None)
         except Exception:
             pass
-    # ข้อมูลเริ่มต้นถ้ายังไม่มีไฟล์
+    # ข้อมูลเริ่มต้นสำรองถ้ายังไม่มีไฟล์
     return pd.DataFrame({
         0: ["691489", "922679", "680172", "352415", "863206"],
         1: ["1489", "2679", "172", "2415", "3206"]
     })
 
-df_history = load_csv_data(uploaded_file)
+# ปุ่มรีเฟรชข้อมูลล่าสุด
+if st.sidebar.button("🔄 รีเฟรชข้อมูล CSV"):
+    st.cache_data.clear()
+    st.rerun()
 
-# ดึงเลขฐานจากแถวสุดท้ายมาเป็นค่าเริ่มต้น
+df_history = load_csv_data(uploaded_csv, CSV_FILE_NAME)
+
+# ดึงเลขฐานจากแถวสุดท้ายของ CSV มาเป็นค่าเริ่มต้น
 default_base = "863206"
 if df_history is not None and not df_history.empty:
     last_row = df_history.iloc[-1]
@@ -64,7 +72,7 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.subheader("📢 ประกาศ / อัพเดทข้อมูล")
 if "latest_update" not in st.session_state:
-    st.session_state.latest_update = "ระบบพร้อมใช้งาน อัปโหลด CSV ง่ายๆ ได้จากแถบด้านข้าง"
+    st.session_state.latest_update = "ระบบเชื่อมต่อข้อมูล history_lao.csv สำเร็จ"
 
 input_update = st.sidebar.text_area("ข้อความประกาศ:", value=st.session_state.latest_update)
 if st.sidebar.button("💾 บันทึกประกาศ"):
@@ -185,14 +193,16 @@ st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name} (เล
 # แสดงประกาศล่าสุด
 st.info(f"📢 **ประกาศล่าสุด:** {st.session_state.latest_update}")
 
-# แสดงตารางประวัติจาก CSV
-with st.expander("📂 ดูประวัติข้อมูลสถิติย้อนหลัง (CSV)"):
+# แสดงตารางประวัติจาก history_lao.csv แบบพับเก็บได้
+with st.expander("📂 ดูประวัติข้อมูลสถิติย้อนหลัง (history_lao.csv)"):
     if df_history is not None:
         st.dataframe(df_history, use_container_width=True)
+    else:
+        st.warning("⚠️ ยังไม่พบข้อมูลประวัติ CSV")
 
 st.markdown("---")
 
-# ช่องกรอกเลขฐาน
+# ช่องกรอกเลขฐาน (ดึงค่าเริ่มต้นจาก CSV อัตโนมัติ)
 base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", value=default_base, max_chars=10)
 
 if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
