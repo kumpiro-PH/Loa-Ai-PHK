@@ -99,13 +99,19 @@ CSV_FILE_NAME = "history_lao.csv"
 # ==========================================
 # 2. ฟังก์ชันจัดการ CSV และ สูตรคำนวณ (1-15)
 # ==========================================
-@st.cache_data(ttl=1)
 def load_csv_data(filename):
+    """อ่าน CSV ใหม่ทุกครั้ง และเก็บตัวเลขเป็นข้อความเพื่อรักษาเลขศูนย์นำหน้า"""
     if os.path.exists(filename):
         try:
-            return pd.read_csv(filename, header=None)
-        except Exception:
-            pass
+            df = pd.read_csv(filename, header=None, dtype=str, keep_default_na=False)
+            return df
+        except pd.errors.EmptyDataError:
+            return pd.DataFrame()
+        except Exception as exc:
+            st.error(f"ไม่สามารถอ่านไฟล์ {filename}: {exc}")
+            return pd.DataFrame()
+
+    # ใช้ข้อมูลตัวอย่างเฉพาะเมื่อยังไม่มีไฟล์ CSV
     return pd.DataFrame({
         0: ["691489", "922679", "680172", "352415", "738155"],
         1: ["1489", "2679", "172", "2415", "8155"]
@@ -231,19 +237,13 @@ menu = st.sidebar.selectbox(
 
 df_history = load_csv_data(CSV_FILE_NAME)
 
-# ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV เสมอ
-latest_base = "738155"
-if df_history is not None and not df_history.empty:
-    for row_idx in range(len(df_history) - 1, -1, -1):
-        row_data = df_history.iloc[row_idx]
-        found = False
-        for val in row_data:
-            val_str = str(val).strip()
-            if val_str.isdigit() and len(val_str) >= 6:
-                latest_base = val_str
-                found = True
-                break
-        if found:
+# ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV (ไฟล์นี้ไม่มี Header)
+latest_base = "691489"
+if df_history is not None and not df_history.empty and 0 in df_history.columns:
+    for raw_value in reversed(df_history[0].tolist()):
+        val_str = str(raw_value).strip()
+        if val_str.isdigit() and len(val_str) >= 6:
+            latest_base = val_str[:6]
             break
 
 # ==========================================
@@ -262,9 +262,15 @@ if menu == "1. อัปเดตผลรางวัล":
             if len(input_6d) >= 6 and input_6d.isdigit():
                 val_4d = input_6d[-4:]
                 new_row = pd.DataFrame([[input_6d, val_4d]])
-                new_row.to_csv(CSV_FILE_NAME, mode='a', header=False, index=False)
-                st.cache_data.clear()
+                new_row.to_csv(
+                    CSV_FILE_NAME,
+                    mode="a",
+                    header=False,
+                    index=False,
+                    encoding="utf-8"
+                )
                 st.success(f"บันทึกข้อมูลเลข {input_6d} เรียบร้อยแล้ว!")
+                st.rerun()
             else:
                 st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
 
@@ -284,9 +290,14 @@ elif menu == "3. ลบข้อมูลงวดล่าสุด":
         st.write(df_history.tail(1))
         if st.button("❌ ยืนยันลบข้อมูลงวดล่าสุด", type="primary"):
             df_history = df_history.iloc[:-1]
-            df_history.to_csv(CSV_FILE_NAME, header=False, index=False)
-            st.cache_data.clear()
-            st.success("ลบข้อมูลงวดล่าสุดเรียบร้อยแล้ว! กรุณารีเฟรชหน้าเว็บ")
+            df_history.to_csv(
+                CSV_FILE_NAME,
+                header=False,
+                index=False,
+                encoding="utf-8"
+            )
+            st.success("ลบข้อมูลงวดล่าสุดเรียบร้อยแล้ว!")
+            st.rerun()
     else:
         st.warning("ไม่มีข้อมูลให้ลบ")
 
@@ -320,7 +331,12 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
     st.markdown("### 🔮 Forward Prediction (ทำนายแนวทางงวดถัดไป)")
     st.write(f"📌 **ข้อมูลฐานล่าสุดที่ดึงมาวิเคราะห์:** `{latest_base}`")
 
-    base_input = st.text_input("ตรวจสอบหรือแก้ไขเลขฐาน (6 หลักขึ้นไป):", value=latest_base, max_chars=10)
+    base_input = st.text_input(
+        "ตรวจสอบหรือแก้ไขเลขฐาน (6 หลักขึ้นไป):",
+        value=latest_base,
+        max_chars=10,
+        key=f"base_input_{latest_base}"
+    )
     display_count = st.radio("เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:", [5, 6], index=1, horizontal=True)
 
     if st.button("🚀 ประมวลผลทำนายเลข", type="primary", use_container_width=True):
