@@ -19,7 +19,7 @@ CSV_FILE_NAME = "history_lao.csv"
 # ==========================================
 st.sidebar.header("⚙️ จัดการข้อมูล & ตั้งค่า")
 
-# ช่องอัปโหลดไฟล์ history_lao.csv ผ่านหน้าเว็บ (ทางเลือกเสริมถ้าไฟล์ไม่อยู่ในโฟลเดอร์)
+# ช่องอัปโหลดไฟล์ history_lao.csv ผ่านหน้าเว็บ
 uploaded_csv = st.sidebar.file_uploader("📂 อัปโหลดไฟล์ history_lao.csv", type=["csv"])
 
 # ฟังก์ชันโหลดข้อมูล CSV พร้อมระบบรีเฟรช
@@ -48,14 +48,20 @@ if st.sidebar.button("🔄 รีเฟรชข้อมูล CSV"):
 
 df_history = load_csv_data(uploaded_csv, CSV_FILE_NAME)
 
-# ดึงเลขฐานจากแถวสุดท้ายของ CSV มาเป็นค่าเริ่มต้น
+# 💡 ส่วนสำคัญ: ดึงค่าเลขฐานล่าสุดจากแถวสุดท้ายของ CSV มาเป็นค่าเริ่มต้น
 default_base = "863206"
 if df_history is not None and not df_history.empty:
-    last_row = df_history.iloc[-1]
-    for val in last_row:
-        val_str = str(val).strip()
-        if val_str.isdigit() and len(val_str) >= 6:
-            default_base = val_str
+    # วนลูปหาค่าที่เป็นตัวเลขความยาวตั้งแต่ 6 หลักขึ้นไปจากแถวสุดท้ายย้อนกลับขึ้นมา
+    for row_idx in range(len(df_history) - 1, -1, -1):
+        row_data = df_history.iloc[row_idx]
+        found = False
+        for val in row_data:
+            val_str = str(val).strip()
+            if val_str.isdigit() and len(val_str) >= 6:
+                default_base = val_str
+                found = True
+                break
+        if found:
             break
 
 # ตั้งค่าเลขประจำวัน
@@ -202,7 +208,7 @@ with st.expander("📂 ดูประวัติข้อมูลสถิต
 
 st.markdown("---")
 
-# ช่องกรอกเลขฐาน (ดึงค่าเริ่มต้นจาก CSV อัตโนมัติ)
+# ช่องกรอกเลขฐาน (ใช้ค่า default_base ที่ดึงมาจากแถวสุดท้ายของ CSV โดยอัตโนมัติ)
 base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", value=default_base, max_chars=10)
 
 if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
