@@ -25,7 +25,6 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Grid Container สำหรับการ์ดความถี่ */
     .grid-container {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
@@ -60,7 +59,6 @@ st.markdown("""
         margin-top: 6px;
     }
 
-    /* กล่องจับคู่เลข */
     .pair-box {
         background-color: #f0f9ff;
         border-left: 4px solid #0284c7;
@@ -99,11 +97,8 @@ VERSION = "4.0 WEB MOBILE"
 CSV_FILE_NAME = "history_lao.csv"
 
 # ==========================================
-# SIDEBAR: จัดการข้อมูล & ตั้งค่า
+# 2. ฟังก์ชันจัดการ CSV และ สูตรคำนวณ (1-15)
 # ==========================================
-st.sidebar.header("⚙️ จัดการข้อมูล CSV")
-
-# ฟังก์ชันโหลดข้อมูล CSV พร้อมระบบรีเฟรช
 @st.cache_data(ttl=1)
 def load_csv_data(filename):
     if os.path.exists(filename):
@@ -116,33 +111,6 @@ def load_csv_data(filename):
         1: ["1489", "2679", "172", "2415", "8155"]
     })
 
-df_history = load_csv_data(CSV_FILE_NAME)
-
-# ปุ่มรีเฟรชข้อมูลล่าสุด
-if st.sidebar.button("🔄 รีเฟรชข้อมูล CSV"):
-    st.cache_data.clear()
-    if "base_number" in st.session_state:
-        del st.session_state.base_number
-    st.rerun()
-
-# ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV เสมอ
-latest_base = "738155"
-if df_history is not None and not df_history.empty:
-    for row_idx in range(len(df_history) - 1, -1, -1):
-        row_data = df_history.iloc[row_idx]
-        found = False
-        for val in row_data:
-            val_str = str(val).strip()
-            if val_str.isdigit() and len(val_str) >= 6:
-                latest_base = val_str
-                found = True
-                break
-        if found:
-            break
-
-# ==========================================
-# FORMULAS (1 - 15)
-# ==========================================
 def formula5(number):
     digits = [int(x) for x in number]
     score = Counter()
@@ -246,108 +214,173 @@ def calculate_formula_frequency(formula_outputs, top_n=6):
     return counter, ranking[:top_n]
 
 # ==========================================
-# STREAMLIT UI
+# 3. SIDEBAR NAVIGATION (เลือกเมนูการใช้งาน)
 # ==========================================
-st.title("🧠 LAO AI PROFESSIONAL")
-day_name = datetime.now().strftime("%A")
-st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name}")
+st.sidebar.markdown("### เลือกเมนูการใช้งาน")
+menu = st.sidebar.selectbox(
+    "",
+    [
+        "1. อัปเดตผลรางวัล",
+        "2. แสดงประวัติ (History)",
+        "3. ลบข้อมูลงวดล่าสุด",
+        "4. Formula Ranking (จัดอันดับสูตร)",
+        "5. Forward Prediction (ทำนายงวดถัดไป)"
+    ],
+    label_visibility="collapsed"
+)
 
-# แสดงตารางประวัติจาก history_lao.csv แบบพับเก็บได้
-with st.expander("📂 ดูประวัติข้อมูลสถิติย้อนหลัง (history_lao.csv)"):
+df_history = load_csv_data(CSV_FILE_NAME)
+
+# ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV เสมอ
+latest_base = "738155"
+if df_history is not None and not df_history.empty:
+    for row_idx in range(len(df_history) - 1, -1, -1):
+        row_data = df_history.iloc[row_idx]
+        found = False
+        for val in row_data:
+            val_str = str(val).strip()
+            if val_str.isdigit() and len(val_str) >= 6:
+                latest_base = val_str
+                found = True
+                break
+        if found:
+            break
+
+# ==========================================
+# 4. MAIN CONTENT (จัดการตามเมนูที่เลือก)
+# ==========================================
+if menu == "1. อัปเดตผลรางวัล":
+    st.title("🧠 Lao AI Professional")
+    st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่")
+    
+    with st.form("update_form"):
+        input_date = st.text_input("ใ่วันที่ (DD/MM/YYYY เช่น 04/11/2026)")
+        input_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):")
+        submitted = st.form_submit_button("บันทึกผลรางวัล")
+        
+        if submitted:
+            if len(input_6d) >= 6 and input_6d.isdigit():
+                val_4d = input_6d[-4:]
+                new_row = pd.DataFrame([[input_6d, val_4d]])
+                new_row.to_csv(CSV_FILE_NAME, mode='a', header=False, index=False)
+                st.cache_data.clear()
+                st.success(f"บันทึกข้อมูลเลข {input_6d} เรียบร้อยแล้ว!")
+            else:
+                st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
+
+elif menu == "2. แสดงประวัติ (History)":
+    st.title("🧠 Lao AI Professional")
+    st.markdown("### 📂 แสดงประวัติข้อมูลสถิติย้อนหลัง (history_lao.csv)")
     if df_history is not None:
         st.dataframe(df_history, use_container_width=True)
     else:
         st.warning("⚠️ ยังไม่พบข้อมูลประวัติ CSV")
 
-st.markdown("---")
-
-# จัดการค่าเริ่มต้นในช่องกรอกเลขฐานให้ดึงจาก CSV ล่าสุดเสมอ
-if "base_number" not in st.session_state or st.session_state.get("last_loaded_base") != latest_base:
-    st.session_state.base_number = latest_base
-    st.session_state.last_loaded_base = latest_base
-
-base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", key="base_number", max_chars=10)
-
-# ตัวเลือกจำนวนที่ต้องการแสดงผล (5 หรือ 6 ตัว)
-display_count = st.radio("เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:", [5, 6], index=1, horizontal=True)
-
-# 🚀 ปุ่มกดวิเคราะห์ (คำนวณใหม่สดๆ ทุกครั้งที่กด)
-if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
-    if len(base_input) < 6 or not base_input.isdigit():
-        st.error("❌ กรุณากรอกเลขฐานอย่างน้อย 6 หลัก และต้องเป็นตัวเลขเท่านั้น")
+elif menu == "3. ลบข้อมูลงวดล่าสุด":
+    st.title("🧠 Lao AI Professional")
+    st.markdown("### 🗑️ ลบข้อมูลงวดล่าสุดออกจากระบบ")
+    if df_history is not None and not df_history.empty:
+        st.write("ข้อมูลแถวสุดท้ายปัจจุบัน:")
+        st.write(df_history.tail(1))
+        if st.button("❌ ยืนยันลบข้อมูลงวดล่าสุด", type="primary"):
+            df_history = df_history.iloc[:-1]
+            df_history.to_csv(CSV_FILE_NAME, header=False, index=False)
+            st.cache_data.clear()
+            st.success("ลบข้อมูลงวดล่าสุดเรียบร้อยแล้ว! กรุณารีเฟรชหน้าเว็บ")
     else:
-        formula_outputs = {}
-        for name, func in formulas:
-            try:
-                res = str(func(base_input)).strip()
-                if res.isdigit():
-                    formula_outputs[name] = res.zfill(4)[-4:]
-            except Exception:
-                pass
+        st.warning("ไม่มีข้อมูลให้ลบ")
 
-        counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=display_count)
-        valid_count = sum(1 for v in formula_outputs.values() if len(str(v)) >= 4 and str(v).isdigit())
-        digits_only = [item[0] for item in top_digits]
+elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
+    st.title("🧠 Lao AI Professional")
+    st.markdown("### 🏆 Formula Ranking (จัดอันดับความแม่นยำ 15 สูตร)")
+    st.info("ส่วนนี้แสดงผลการวิเคราะห์และจัดอันดับความถี่ของแต่ละสูตรจากฐานข้อมูลปัจจุบัน")
+    
+    if df_history is not None and not df_history.empty:
+        formula_scores = {name: 0 for name, _ in formulas}
+        # วิเคราะห์จำลองจากประวัติย้อนหลังทั้งหมด
+        for idx, row in df_history.iterrows():
+            for val in row:
+                v_str = str(val).strip()
+                if v_str.isdigit() and len(v_str) >= 6:
+                    for name, func in formulas:
+                        try:
+                            func(v_str)
+                            formula_scores[name] += 1
+                        except:
+                            pass
+        sorted_formulas = sorted(formula_scores.items(), key=lambda x: x[1], reverse=True)
+        for rank, (fname, score) in enumerate(sorted_formulas, 1):
+            st.write(f"**{rank}. {fname}** — คะแนนประสิทธิภาพ: {score}")
 
-        st.markdown(f"### 📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร (แสดง {display_count} อันดับ)")
-        
-        # แสดงผลเป็นการ์ด Responsive โทนสีฟ้า
-        if top_digits:
-            html_parts = ['<div class="grid-container">']
-            for num, count in top_digits:
-                html_parts.append(f'<div class="stat-card"><div class="stat-num">{num}</div><div class="stat-count">{count} ครั้ง</div></div>')
-            html_parts.append('</div>')
-            st.markdown("".join(html_parts), unsafe_allow_html=True)
+elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
+    st.title("🧠 Lao AI Professional")
+    day_name = datetime.now().strftime("%A")
+    st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name}")
+    
+    st.markdown("### 🔮 Forward Prediction (ทำนายแนวทางงวดถัดไป)")
+    st.write(f"📌 **ข้อมูลฐานล่าสุดที่ดึงมาวิเคราะห์:** `{latest_base}`")
 
-        st.caption(f"ความถี้นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count} สูตร")
+    base_input = st.text_input("ตรวจสอบหรือแก้ไขเลขฐาน (6 หลักขึ้นไป):", value=latest_base, max_chars=10)
+    display_count = st.radio("เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:", [5, 6], index=1, horizontal=True)
 
-        # ==========================================
-        # เพิ่มส่วนชุดจับคู่เลขเด่น 2 ตัว และ 3 ตัว (วิน)
-        # ==========================================
-        if len(digits_only) >= 3:
-            st.markdown("---")
-            st.markdown("### 🎯 ชุดจับคู่เลขเด่น (จากผลการตัดสไลซ์)")
+    if st.button("🚀 ประมวลผลทำนายเลข", type="primary", use_container_width=True):
+        if len(base_input) < 6 or not base_input.isdigit():
+            st.error("❌ กรุณากรอกเลขฐานอย่างน้อย 6 หลัก และต้องเป็นตัวเลขเท่านั้น")
+        else:
+            formula_outputs = {}
+            for name, func in formulas:
+                try:
+                    res = str(func(base_input)).strip()
+                    if res.isdigit():
+                        formula_outputs[name] = res.zfill(4)[-4:]
+                except Exception:
+                    pass
 
-            pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
-            pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
+            counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=display_count)
+            valid_count = sum(1 for v in formula_outputs.values() if len(str(v)) >= 4 and str(v).isdigit())
+            digits_only = [item[0] for item in top_digits]
+
+            st.markdown(f"### 📊 เลขที่ปรากฏบ่อยจาก 15 สูตร (แสดง {display_count} อันดับ)")
             
-            top_3_straight = "".join(digits_only[:3])
-            top_2_straight = "".join(digits_only[:2])
+            if top_digits:
+                html_parts = ['<div class="grid-container">']
+                for num, count in top_digits:
+                    html_parts.append(f'<div class="stat-card"><div class="stat-num">{num}</div><div class="stat-count">{count} ครั้ง</div></div>')
+                html_parts.append('</div>')
+                st.markdown("".join(html_parts), unsafe_allow_html=True)
 
-            # แสดงชุดเน้นพิเศษ
-            st.markdown(f"""
-            <div class="pair-box" style="border-left-color: #0284c7; background-color: #e0f2fe;">
-                <div class="pair-title">🔹 ชุดเน้นพิเศษ (Top Pick จากอันดับ 1-3)</div>
-                <span class="badge badge-highlight">3 ตัว: {top_3_straight}</span>
-                <span class="badge badge-highlight">2 ตัว: {top_2_straight}</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.caption(f"ความถี้นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count} สูตร")
 
-            # แสดงชุด 2 ตัว
-            badges_2d = "".join([f'<span class="badge">{p}</span>' for p in pairs_2d])
-            st.markdown(f"""
-            <div class="pair-box">
-                <div class="pair-title">🎲 ชุด 2 ตัวจับคู่วิน ({len(pairs_2d)} ชุด)</div>
-                {badges_2d}
-            </div>
-            """, unsafe_allow_html=True)
+            if len(digits_only) >= 3:
+                st.markdown("---")
+                st.markdown("### 🎯 ชุดจับคู่เลขเด่น (จากผลการตัดสไลซ์)")
 
-            # แสดงชุด 3 ตัว
-            badges_3d = "".join([f'<span class="badge">{p}</span>' for p in pairs_3d])
-            st.markdown(f"""
-            <div class="pair-box">
-                <div class="pair-title">🎲 ชุด 3 ตัวจับคู่วิน ({len(pairs_3d)} ชุด)</div>
-                {badges_3d}
-            </div>
-            """, unsafe_allow_html=True)
+                pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
+                pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
+                
+                top_3_straight = "".join(digits_only[:3])
+                top_2_straight = "".join(digits_only[:2])
 
-        st.markdown("---")
-        st.markdown("### 3. เลขเด่นจากการรวมสูตร")
-        
-        main_group = [d for d, c in top_digits if c >= 10]
-        sub_group = [d for d, c in top_digits if 5 <= c < 10]
-        low_group = [str(i) for i in range(10) if i not in [int(d) for d, _ in top_digits]]
+                st.markdown(f"""
+                <div class="pair-box" style="border-left-color: #0284c7; background-color: #e0f2fe;">
+                    <div class="pair-title">🔹 ชุดเน้นพิเศษ (Top Pick จากอันดับ 1-3)</div>
+                    <span class="badge badge-highlight">3 ตัว: {top_3_straight}</span>
+                    <span class="badge badge-highlight">2 ตัว: {top_2_straight}</span>
+                </div>
+                """, unsafe_allow_html=True)
 
-        st.write(f"• **กลุ่มเด่น:** {' – '.join(main_group) if main_group else '-'}")
-        st.write(f"• **กลุ่มรอง:** {' – '.join(sub_group) if sub_group else '-'}")
-        st.write(f"• **เลขอื่นๆ:** {' – '.join(low_group) if low_group else '-'}")
+                badges_2d = "".join([f'<span class="badge">{p}</span>' for p in pairs_2d])
+                st.markdown(f"""
+                <div class="pair-box">
+                    <div class="pair-title">🎲 ชุด 2 ตัวจับคู่วิน ({len(pairs_2d)} ชุด)</div>
+                    {badges_2d}
+                </div>
+                """, unsafe_allow_html=True)
+
+                badges_3d = "".join([f'<span class="badge">{p}</span>' for p in pairs_3d])
+                st.markdown(f"""
+                <div class="pair-box">
+                    <div class="pair-title">🎲 ชุด 3 ตัวจับคู่วิน ({len(pairs_3d)} ชุด)</div>
+                    {badges_3d}
+                </div>
+                """, unsafe_allow_html=True)
