@@ -3,23 +3,107 @@ import pandas as pd
 import os
 from datetime import datetime
 from collections import Counter
+from itertools import combinations
 
-# ตั้งค่าหน้าเว็บ
+# ==========================================
+# 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
+# ==========================================
 st.set_page_config(
     page_title="Lao AI Professional v4.0",
     page_icon="🧠",
     layout="centered"
 )
 
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Sarabun', sans-serif;
+    }
+
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Grid Container สำหรับการ์ดความถี่ */
+    .grid-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        gap: 10px;
+        margin-top: 15px;
+        margin-bottom: 15px;
+    }
+    
+    .stat-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+        border: 1px solid #bae6fd;
+        border-top: 4px solid #0284c7;
+        border-radius: 12px;
+        padding: 12px 6px;
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.08);
+    }
+    .stat-num {
+        font-size: 26px;
+        font-weight: 800;
+        color: #0c4a6e;
+        line-height: 1.2;
+    }
+    .stat-count {
+        font-size: 12px;
+        font-weight: 600;
+        color: #0369a1;
+        background-color: #e0f2fe;
+        padding: 2px 8px;
+        border-radius: 12px;
+        display: inline-block;
+        margin-top: 6px;
+    }
+
+    /* กล่องจับคู่เลข */
+    .pair-box {
+        background-color: #f0f9ff;
+        border-left: 4px solid #0284c7;
+        border-radius: 8px;
+        padding: 12px 15px;
+        margin-top: 10px;
+        margin-bottom: 15px;
+    }
+    .pair-title {
+        font-weight: 700;
+        color: #0369a1;
+        margin-bottom: 8px;
+        font-size: 15px;
+    }
+    .badge {
+        display: inline-block;
+        background-color: #ffffff;
+        border: 1px solid #7dd3fc;
+        border-radius: 6px;
+        padding: 4px 8px;
+        margin: 3px;
+        font-weight: 600;
+        color: #0c4a6e;
+        font-size: 13px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .badge-highlight {
+        background-color: #0284c7;
+        border-color: #0369a1;
+        color: #ffffff;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 VERSION = "4.0 WEB MOBILE"
 CSV_FILE_NAME = "history_lao.csv"
 
 # ==========================================
-# SIDEBAR: จัดการข้อมูล & ตั้งค่า (เพิ่มระบบอัปเดตผ่านหน้าเว็บ)
+# SIDEBAR: จัดการข้อมูล & ตั้งค่า
 # ==========================================
-st.sidebar.header("⚙️ จัดการข้อมูล")
+st.sidebar.header("⚙️ จัดการข้อมูล CSV")
 
-# ฟังก์ชันโหลดข้อมูล CSV
+# ฟังก์ชันโหลดข้อมูล CSV พร้อมระบบรีเฟรช
 @st.cache_data(ttl=1)
 def load_csv_data(filename):
     if os.path.exists(filename):
@@ -34,34 +118,14 @@ def load_csv_data(filename):
 
 df_history = load_csv_data(CSV_FILE_NAME)
 
-# ➕ เมนูเพิ่มข้อมูล/อัปเดตงวดใหม่ ผ่านหน้าเว็บ (แบบแอปฮานอย)
-with st.sidebar.expander("➕ 1. อัปเดตผลรางวัล (งวดใหม่)", expanded=False):
-    new_6digit = st.text_input("กรอกเลข 6 หลักงวดล่าสุด:", max_chars=6)
-    if st.button("💾 บันทึกงวดใหม่ลงระบบ"):
-        if len(new_6digit) == 6 and new_6digit.isdigit():
-            new_4digit = new_6digit[-4:]
-            new_row = pd.DataFrame([[new_6digit, new_4digit]])
-            
-            # บันทึกต่อท้ายลงไฟล์ history_lao.csv
-            new_row.to_csv(CSV_FILE_NAME, mode='a', header=False, index=False)
-            
-            # ล้างแคชเพื่อให้แอปอ่านข้อมูลใหม่ทันที
-            st.cache_data.clear()
-            if "base_number" in st.session_state:
-                del st.session_state.base_number
-            st.success(f"บันทึกเลข {new_6digit} เรียบร้อย!")
-            st.rerun()
-        else:
-            st.error("กรุณากรอกตัวเลขให้ครบ 6 หลัก")
-
-# ปุ่มรีเฟรชข้อมูล
+# ปุ่มรีเฟรชข้อมูลล่าสุด
 if st.sidebar.button("🔄 รีเฟรชข้อมูล CSV"):
     st.cache_data.clear()
     if "base_number" in st.session_state:
         del st.session_state.base_number
     st.rerun()
 
-# 💡 ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV เสมอ
+# ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV เสมอ
 latest_base = "738155"
 if df_history is not None and not df_history.empty:
     for row_idx in range(len(df_history) - 1, -1, -1):
@@ -75,27 +139,6 @@ if df_history is not None and not df_history.empty:
                 break
         if found:
             break
-
-# ตั้งค่าเลขประจำวัน
-override_daily = st.sidebar.checkbox("แก้ไขเลขประจำวันเอง")
-day_name = datetime.now().strftime("%A")
-default_val = "657872"
-
-if override_daily:
-    day_val = st.sidebar.text_input(f"เลขประจำวัน ({day_name}):", value=default_val, max_chars=10)
-else:
-    day_val = default_val
-
-# ช่องอัพเดทประกาศล่าสุด
-st.sidebar.markdown("---")
-st.sidebar.subheader("📢 ประกาศ / อัพเดทข้อมูล")
-if "latest_update" not in st.session_state:
-    st.session_state.latest_update = "ระบบเชื่อมต่อข้อมูล history_lao.csv สำเร็จ"
-
-input_update = st.sidebar.text_area("ข้อความประกาศ:", value=st.session_state.latest_update)
-if st.sidebar.button("💾 บันทึกประกาศ"):
-    st.session_state.latest_update = input_update
-    st.sidebar.success("บันทึกข้อความสำเร็จ!")
 
 # ==========================================
 # FORMULAS (1 - 15)
@@ -193,7 +236,7 @@ formulas = [
     ("Formula 13", formula13), ("Formula 14", formula14), ("Formula Neighbor", formula_neighbor)
 ]
 
-def calculate_formula_frequency(formula_outputs, top_n=5):
+def calculate_formula_frequency(formula_outputs, top_n=6):
     counter = Counter()
     for result in formula_outputs.values():
         number = str(result).strip()
@@ -203,13 +246,11 @@ def calculate_formula_frequency(formula_outputs, top_n=5):
     return counter, ranking[:top_n]
 
 # ==========================================
-# STREAMLIT UI (หน้าจอหลัก)
+# STREAMLIT UI
 # ==========================================
 st.title("🧠 LAO AI PROFESSIONAL")
-st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name} (เลขประจำวัน: {day_val})")
-
-# แสดงประกาศล่าสุด
-st.info(f"📢 **ประกาศล่าสุด:** {st.session_state.latest_update}")
+day_name = datetime.now().strftime("%A")
+st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name}")
 
 # แสดงตารางประวัติจาก history_lao.csv แบบพับเก็บได้
 with st.expander("📂 ดูประวัติข้อมูลสถิติย้อนหลัง (history_lao.csv)"):
@@ -227,6 +268,9 @@ if "base_number" not in st.session_state or st.session_state.get("last_loaded_ba
 
 base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", key="base_number", max_chars=10)
 
+# ตัวเลือกจำนวนที่ต้องการแสดงผล (5 หรือ 6 ตัว)
+display_count = st.radio("เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:", [5, 6], index=1, horizontal=True)
+
 # 🚀 ปุ่มกดวิเคราะห์ (คำนวณใหม่สดๆ ทุกครั้งที่กด)
 if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
     if len(base_input) < 6 or not base_input.isdigit():
@@ -241,21 +285,64 @@ if st.button("🚀 วิเคราะห์ข้อมูล", type="primary
             except Exception:
                 pass
 
-        counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=5)
+        counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=display_count)
         valid_count = sum(1 for v in formula_outputs.values() if len(str(v)) >= 4 and str(v).isdigit())
+        digits_only = [item[0] for item in top_digits]
 
-        st.markdown("### 📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
+        st.markdown(f"### 📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร (แสดง {display_count} อันดับ)")
         
+        # แสดงผลเป็นการ์ด Responsive โทนสีฟ้า
         if top_digits:
-            cols = st.columns(len(top_digits))
-            for i, (digit, count) in enumerate(top_digits):
-                with cols[i]:
-                    st.metric(label=f"{count} ครั้ง", value=str(digit))
+            html_parts = ['<div class="grid-container">']
+            for num, count in top_digits:
+                html_parts.append(f'<div class="stat-card"><div class="stat-num">{num}</div><div class="stat-count">{count} ครั้ง</div></div>')
+            html_parts.append('</div>')
+            st.markdown("".join(html_parts), unsafe_allow_html=True)
 
-        st.caption(f"ความถี่นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count} สูตร")
+        st.caption(f"ความถี้นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count} สูตร")
+
+        # ==========================================
+        # เพิ่มส่วนชุดจับคู่เลขเด่น 2 ตัว และ 3 ตัว (วิน)
+        # ==========================================
+        if len(digits_only) >= 3:
+            st.markdown("---")
+            st.markdown("### 🎯 ชุดจับคู่เลขเด่น (จากผลการตัดสไลซ์)")
+
+            pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
+            pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
+            
+            top_3_straight = "".join(digits_only[:3])
+            top_2_straight = "".join(digits_only[:2])
+
+            # แสดงชุดเน้นพิเศษ
+            st.markdown(f"""
+            <div class="pair-box" style="border-left-color: #0284c7; background-color: #e0f2fe;">
+                <div class="pair-title">🔹 ชุดเน้นพิเศษ (Top Pick จากอันดับ 1-3)</div>
+                <span class="badge badge-highlight">3 ตัว: {top_3_straight}</span>
+                <span class="badge badge-highlight">2 ตัว: {top_2_straight}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # แสดงชุด 2 ตัว
+            badges_2d = "".join([f'<span class="badge">{p}</span>' for p in pairs_2d])
+            st.markdown(f"""
+            <div class="pair-box">
+                <div class="pair-title">🎲 ชุด 2 ตัวจับคู่วิน ({len(pairs_2d)} ชุด)</div>
+                {badges_2d}
+            </div>
+            """, unsafe_allow_html=True)
+
+            # แสดงชุด 3 ตัว
+            badges_3d = "".join([f'<span class="badge">{p}</span>' for p in pairs_3d])
+            st.markdown(f"""
+            <div class="pair-box">
+                <div class="pair-title">🎲 ชุด 3 ตัวจับคู่วิน ({len(pairs_3d)} ชุด)</div>
+                {badges_3d}
+            </div>
+            """, unsafe_allow_html=True)
 
         st.markdown("---")
-        st.markdown("### 🎯 เลขเด่นจากการรวมสูตร")
+        st.markdown("### 3. เลขเด่นจากการรวมสูตร")
         
         main_group = [d for d, c in top_digits if c >= 10]
         sub_group = [d for d, c in top_digits if 5 <= c < 10]
@@ -263,4 +350,4 @@ if st.button("🚀 วิเคราะห์ข้อมูล", type="primary
 
         st.write(f"• **กลุ่มเด่น:** {' – '.join(main_group) if main_group else '-'}")
         st.write(f"• **กลุ่มรอง:** {' – '.join(sub_group) if sub_group else '-'}")
-        st.markdown(f"• **เลขที่ปรากฏน้อยกว่า:** {' – '.join(low_group) if low_group else '-'}")
+        st.write(f"• **เลขอื่นๆ:** {' – '.join(low_group) if low_group else '-'}")
