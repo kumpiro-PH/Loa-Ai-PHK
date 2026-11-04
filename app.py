@@ -1,4 +1,6 @@
 import streamlit as st
+import pandas as pd
+import os
 from datetime import datetime
 from collections import Counter
 
@@ -11,25 +13,47 @@ st.set_page_config(
 
 VERSION = "4.0 WEB MOBILE"
 
-# ค่าตั้งต้นเลขประจำวัน (ใช้ Dictionary ภายในโค้ดโดยตรง ไม่ใช้ CSV)
-DEFAULT_DAILY_NUMBERS = {
-    "Monday": "056787",
-    "Tuesday": "657872",
-    "Wednesday": "390768",
-    "Thursday": "897693",
-    "Friday": "305687",
-    "Saturday": "7890123",
-    "Sunday": "8901234"
-}
+# ==========================================
+# SIDEBAR: จัดการข้อมูลแบบง่าย (อัปโหลดไฟล์ CSV)
+# ==========================================
+st.sidebar.header("⚙️ จัดการข้อมูล")
+uploaded_file = st.sidebar.file_uploader("📂 อัปโหลดไฟล์ history_lao.csv", type=["csv"])
 
-# ==========================================
-# SIDEBAR: จัดการข้อมูล & ตั้งค่า
-# ==========================================
-st.sidebar.header("⚙️ ตั้งค่าข้อมูล")
+# ฟังก์ชันโหลดข้อมูล (รองรับไฟล์อัปโหลด หรือไฟล์ในเครื่อง หรือข้อมูลสำรอง)
+@st.cache_data
+def load_csv_data(file):
+    if file is not None:
+        try:
+            return pd.read_csv(file, header=None)
+        except Exception:
+            pass
+    if os.path.exists("history_lao.csv"):
+        try:
+            return pd.read_csv("history_lao.csv", header=None)
+        except Exception:
+            pass
+    # ข้อมูลเริ่มต้นถ้ายังไม่มีไฟล์
+    return pd.DataFrame({
+        0: ["691489", "922679", "680172", "352415", "863206"],
+        1: ["1489", "2679", "172", "2415", "3206"]
+    })
+
+df_history = load_csv_data(uploaded_file)
+
+# ดึงเลขฐานจากแถวสุดท้ายมาเป็นค่าเริ่มต้น
+default_base = "863206"
+if df_history is not None and not df_history.empty:
+    last_row = df_history.iloc[-1]
+    for val in last_row:
+        val_str = str(val).strip()
+        if val_str.isdigit() and len(val_str) >= 6:
+            default_base = val_str
+            break
+
+# ตั้งค่าเลขประจำวัน
 override_daily = st.sidebar.checkbox("แก้ไขเลขประจำวันเอง")
-
 day_name = datetime.now().strftime("%A")
-default_val = DEFAULT_DAILY_NUMBERS.get(day_name, "657872")
+default_val = "657872"
 
 if override_daily:
     day_val = st.sidebar.text_input(f"เลขประจำวัน ({day_name}):", value=default_val, max_chars=10)
@@ -40,7 +64,7 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.subheader("📢 ประกาศ / อัพเดทข้อมูล")
 if "latest_update" not in st.session_state:
-    st.session_state.latest_update = "ระบบพร้อมใช้งาน วิเคราะห์สูตรแม่นยำด้วย AI"
+    st.session_state.latest_update = "ระบบพร้อมใช้งาน อัปโหลด CSV ง่ายๆ ได้จากแถบด้านข้าง"
 
 input_update = st.sidebar.text_area("ข้อความประกาศ:", value=st.session_state.latest_update)
 if st.sidebar.button("💾 บันทึกประกาศ"):
@@ -158,13 +182,18 @@ def calculate_formula_frequency(formula_outputs, top_n=5):
 st.title("🧠 LAO AI PROFESSIONAL")
 st.caption(f"เวอร์ชัน: {VERSION} | วัน: {day_name} (เลขประจำวัน: {day_val})")
 
-# แสดงกล่องประกาศล่าสุด
+# แสดงประกาศล่าสุด
 st.info(f"📢 **ประกาศล่าสุด:** {st.session_state.latest_update}")
+
+# แสดงตารางประวัติจาก CSV
+with st.expander("📂 ดูประวัติข้อมูลสถิติย้อนหลัง (CSV)"):
+    if df_history is not None:
+        st.dataframe(df_history, use_container_width=True)
 
 st.markdown("---")
 
 # ช่องกรอกเลขฐาน
-base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", value="863206", max_chars=10)
+base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", value=default_base, max_chars=10)
 
 if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
     if len(base_input) < 6 or not base_input.isdigit():
