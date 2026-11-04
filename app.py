@@ -43,14 +43,13 @@ def load_csv_data(file_obj, filename):
 # ปุ่มรีเฟรชข้อมูลล่าสุด
 if st.sidebar.button("🔄 รีเฟรชข้อมูล CSV"):
     st.cache_data.clear()
-    # เคลียร์ session ของช่องกรอกเลขฐานเพื่อให้ดึงค่าใหม่ล่าสุดทันที
     if "base_number" in st.session_state:
         del st.session_state.base_number
     st.rerun()
 
 df_history = load_csv_data(uploaded_csv, CSV_FILE_NAME)
 
-# 💡 ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV เสมอ
+# ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV เสมอ
 latest_base = "738155"
 if df_history is not None and not df_history.empty:
     for row_idx in range(len(df_history) - 1, -1, -1):
@@ -209,46 +208,48 @@ with st.expander("📂 ดูประวัติข้อมูลสถิต
 
 st.markdown("---")
 
-# 💡 ใช้ Session State ควบคุมค่าช่องกรอกเลขฐาน เพื่อให้ดึงค่าล่าสุดจาก CSV อัตโนมัติเสมอ
+# ควบคุมค่าช่องกรอกเลขฐานให้ซิงค์กับแถวสุดท้ายของ CSV เสมอ
 if "base_number" not in st.session_state or st.session_state.get("last_loaded_base") != latest_base:
     st.session_state.base_number = latest_base
     st.session_state.last_loaded_base = latest_base
 
 base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", key="base_number", max_chars=10)
 
-if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
-    if len(base_input) < 6 or not base_input.isdigit():
-        st.error("❌ กรุณากรอกเลขฐานอย่างน้อย 6 หลัก และต้องเป็นตัวเลขเท่านั้น")
-    else:
-        formula_outputs = {}
-        for name, func in formulas:
-            try:
-                res = str(func(base_input)).strip()
-                if res.isdigit():
-                    formula_outputs[name] = res.zfill(4)[-4:]
-            except Exception:
-                pass
+st.markdown("---")
 
-        counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=5)
-        valid_count = sum(1 for v in formula_outputs.values() if len(str(v)) >= 4 and str(v).isdigit())
+# 🚀 คำนวณและแสดงผลอัตโนมัติทันทีโดยไม่ต้องกดปุ่ม
+if len(base_input) < 6 or not base_input.isdigit():
+    st.error("❌ กรุณากรอกเลขฐานอย่างน้อย 6 หลัก และต้องเป็นตัวเลขเท่านั้น")
+else:
+    formula_outputs = {}
+    for name, func in formulas:
+        try:
+            res = str(func(base_input)).strip()
+            if res.isdigit():
+                formula_outputs[name] = res.zfill(4)[-4:]
+        except Exception:
+            pass
 
-        st.markdown("### 📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
-        
-        if top_digits:
-            cols = st.columns(len(top_digits))
-            for i, (digit, count) in enumerate(top_digits):
-                with cols[i]:
-                    st.metric(label=f"{count} ครั้ง", value=str(digit))
+    counter, top_digits = calculate_formula_frequency(formula_outputs, top_n=5)
+    valid_count = sum(1 for v in formula_outputs.values() if len(str(v)) >= 4 and str(v).isdigit())
 
-        st.caption(f"ความถี่นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count} สูตร")
+    st.markdown("### 📊 เลขที่ปรากฏบ่อยเมื่อรวมผลลัพธ์จาก 15 สูตร")
+    
+    if top_digits:
+        cols = st.columns(len(top_digits))
+        for i, (digit, count) in enumerate(top_digits):
+            with cols[i]:
+                st.metric(label=f"{count} ครั้ง", value=str(digit))
 
-        st.markdown("---")
-        st.markdown("### 🎯 เลขเด่นจากการรวมสูตร")
-        
-        main_group = [d for d, c in top_digits if c >= 10]
-        sub_group = [d for d, c in top_digits if 5 <= c < 10]
-        low_group = [str(i) for i in range(10) if i not in [int(d) for d, _ in top_digits]]
+    st.caption(f"ความถี่นี้นับจากเลข 4 หลักที่แต่ละสูตรสร้างขึ้น รวม {valid_count} สูตร")
 
-        st.write(f"• **กลุ่มเด่น:** {' – '.join(main_group) if main_group else '-'}")
-        st.write(f"• **กลุ่มรอง:** {' – '.join(sub_group) if sub_group else '-'}")
-        st.markdown(f"• **เลขที่ปรากฏน้อยกว่า:** {' – '.join(low_group) if low_group else '-'}")
+    st.markdown("---")
+    st.markdown("### 🎯 เลขเด่นจากการรวมสูตร")
+    
+    main_group = [d for d, c in top_digits if c >= 10]
+    sub_group = [d for d, c in top_digits if 5 <= c < 10]
+    low_group = [str(i) for i in range(10) if i not in [int(d) for d, _ in top_digits]]
+
+    st.write(f"• **กลุ่มเด่น:** {' – '.join(main_group) if main_group else '-'}")
+    st.write(f"• **กลุ่มรอง:** {' – '.join(sub_group) if sub_group else '-'}")
+    st.markdown(f"• **เลขที่ปรากฏน้อยกว่า:** {' – '.join(low_group) if low_group else '-'}")
