@@ -35,30 +35,31 @@ def load_csv_data(file_obj, filename):
             return pd.read_csv(filename, header=None)
         except Exception:
             pass
-    # ข้อมูลเริ่มต้นสำรองถ้ายังไม่มีไฟล์
     return pd.DataFrame({
-        0: ["691489", "922679", "680172", "352415", "863206"],
-        1: ["1489", "2679", "172", "2415", "3206"]
+        0: ["691489", "922679", "680172", "352415", "738155"],
+        1: ["1489", "2679", "172", "2415", "8155"]
     })
 
 # ปุ่มรีเฟรชข้อมูลล่าสุด
 if st.sidebar.button("🔄 รีเฟรชข้อมูล CSV"):
     st.cache_data.clear()
+    # เคลียร์ session ของช่องกรอกเลขฐานเพื่อให้ดึงค่าใหม่ล่าสุดทันที
+    if "base_number" in st.session_state:
+        del st.session_state.base_number
     st.rerun()
 
 df_history = load_csv_data(uploaded_csv, CSV_FILE_NAME)
 
-# 💡 ส่วนสำคัญ: ดึงค่าเลขฐานล่าสุดจากแถวสุดท้ายของ CSV มาเป็นค่าเริ่มต้น
-default_base = "863206"
+# 💡 ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV เสมอ
+latest_base = "738155"
 if df_history is not None and not df_history.empty:
-    # วนลูปหาค่าที่เป็นตัวเลขความยาวตั้งแต่ 6 หลักขึ้นไปจากแถวสุดท้ายย้อนกลับขึ้นมา
     for row_idx in range(len(df_history) - 1, -1, -1):
         row_data = df_history.iloc[row_idx]
         found = False
         for val in row_data:
             val_str = str(val).strip()
             if val_str.isdigit() and len(val_str) >= 6:
-                default_base = val_str
+                latest_base = val_str
                 found = True
                 break
         if found:
@@ -208,8 +209,12 @@ with st.expander("📂 ดูประวัติข้อมูลสถิต
 
 st.markdown("---")
 
-# ช่องกรอกเลขฐาน (ใช้ค่า default_base ที่ดึงมาจากแถวสุดท้ายของ CSV โดยอัตโนมัติ)
-base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", value=default_base, max_chars=10)
+# 💡 ใช้ Session State ควบคุมค่าช่องกรอกเลขฐาน เพื่อให้ดึงค่าล่าสุดจาก CSV อัตโนมัติเสมอ
+if "base_number" not in st.session_state or st.session_state.get("last_loaded_base") != latest_base:
+    st.session_state.base_number = latest_base
+    st.session_state.last_loaded_base = latest_base
+
+base_input = st.text_input("ป้อนเลขฐาน (6 หลักขึ้นไป):", key="base_number", max_chars=10)
 
 if st.button("🚀 วิเคราะห์ข้อมูล", type="primary", use_container_width=True):
     if len(base_input) < 6 or not base_input.isdigit():
