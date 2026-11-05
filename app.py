@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (Full Complete Code with 3-Way Fusion)
+# app.py - Lao AI Professional v4.1 (Full Complete Code with Corrected Latest Row Retrieval)
 import os
 import streamlit as st
 import pandas as pd
@@ -284,7 +284,7 @@ df_history = load_csv_data(CSV_FILE_MAIN)
 latest_base = "691489"
 if df_history is not None and not df_history.empty:
     col_name = "special" if "special" in df_history.columns else df_history.columns[0]
-    for raw_val in df_history[col_name].tolist():
+    for raw_val in reversed(df_history[col_name].tolist()):
         v_str = str(raw_val).strip()
         if v_str.isdigit() and len(v_str) >= 6:
             latest_base = v_str[:6]
@@ -350,10 +350,10 @@ elif menu == "3. ลบข้อมูลงวดล่าสุด":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🗑️ ลบข้อมูลงวดล่าสุดออกจากระบบ")
     if df_history is not None and not df_history.empty:
-        st.write("ข้อมูลแถวแรกสุดปัจจุบัน (งวดล่าสุด):")
-        st.write(df_history.head(1))
+        st.write("ข้อมูลแถวล่างสุดปัจจุบัน (งวดล่าสุดที่จะถูกลบ):")
+        st.write(df_history.tail(1))
         if st.button("❌ ยืนยันลบข้อมูลงวดล่าสุด", type="primary"):
-            df_history = df_history.iloc[1:].reset_index(drop=True)
+            df_history = df_history.iloc[:-1].reset_index(drop=True)
             df_history.to_csv(CSV_FILE_MAIN, index=False, encoding="utf-8")
             st.success("ลบข้อมูลงวดล่าสุดเรียบร้อยแล้ว!")
             st.rerun()
@@ -391,14 +391,22 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
         ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     )
 
-    # ดึงข้อมืองวดรวมล่าสุด และงวดรายวันล่าสุดตามวันที่เลือก
+    # ดึงข้อมืองวดรวมล่าสุดจากแถวล่างสุด
     latest_all = latest_base
+    if df_history is not None and not df_history.empty:
+        col_name = "special" if "special" in df_history.columns else df_history.columns[0]
+        for raw_val in reversed(df_history[col_name].tolist()):
+            v_str = str(raw_val).strip()
+            if v_str.isdigit() and len(v_str) >= 6:
+                latest_all = v_str[:6]
+                break
+
+    # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน
     df_day_specific = load_specific_day_history(day_selected)
     latest_day = latest_all
-    
     if df_day_specific is not None and not df_day_specific.empty:
-        col_name = "special" if "special" in df_day_specific.columns else df_day_specific.columns[0]
-        for raw_val in df_day_specific[col_name].tolist():
+        col_day = "special" if "special" in df_day_specific.columns else df_day_specific.columns[0]
+        for raw_val in reversed(df_day_specific[col_day].tolist()):
             v_str = str(raw_val).strip()
             if v_str.isdigit() and len(v_str) >= 6:
                 latest_day = v_str[:6]
