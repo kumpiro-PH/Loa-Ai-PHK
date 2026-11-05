@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (3-Way Fusion & Multi-CSV Support)
+# app.py - Lao AI Professional v4.1 (Full Complete Code with 3-Way Fusion)
 import os
 import streamlit as st
 import pandas as pd
@@ -121,21 +121,39 @@ DAILY_NUMBERS = {
 # 2. ฟังก์ชันจัดการ CSV และ สูตรคำนวณ (1-15)
 # ==========================================
 def load_csv_data(filename):
-    """อ่าน CSV และเก็บตัวเลขเป็นข้อความเพื่อรักษาเลขศูนย์นำหน้า"""
+    """อ่าน CSV และแปลงโครงสร้างคอลัมน์มาตรฐาน date, special, first_prize, top_3, bottom_2"""
     if os.path.exists(filename):
         try:
-            df = pd.read_csv(filename, header=None, dtype=str, keep_default_na=False)
+            df = pd.read_csv(filename, dtype=str, keep_default_na=False)
+            df.columns = df.columns.str.strip()
+
+            if df.columns[0].isdigit() or len(df.columns) < 5:
+                df = pd.read_csv(
+                    filename,
+                    header=None,
+                    dtype=str,
+                    keep_default_na=False,
+                    names=["date", "special", "first_prize", "top_3", "bottom_2"]
+                )
+            else:
+                column_mapping = {
+                    "วันที่": "date",
+                    "เลข 6 ตัว": "special",
+                    "รางวัลพิเศษ": "special",
+                    "รางวัลที่ 1": "first_prize",
+                    "3 ตัวบน": "top_3",
+                    "เลข 3 ตัวบน": "top_3",
+                    "2 ตัวล่าง": "bottom_2",
+                    "เลข 2 ตัวล่าง": "bottom_2"
+                }
+                df = df.rename(columns=column_mapping)
+
             return df
-        except pd.errors.EmptyDataError:
-            return pd.DataFrame()
         except Exception as exc:
             st.error(f"ไม่สามารถอ่านไฟล์ {filename}: {exc}")
             return pd.DataFrame()
 
-    return pd.DataFrame({
-        0: ["691489", "922679", "680172", "352415", "738155"],
-        1: ["1489", "2679", "172", "2415", "8155"]
-    })
+    return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
 def load_specific_day_history(day_en):
     """โหลดข้อมูลเฉพาะไฟล์ CSV ประจำวันนั้นๆ เช่น history_lao_thu.csv"""
@@ -264,11 +282,12 @@ menu = st.sidebar.selectbox(
 df_history = load_csv_data(CSV_FILE_MAIN)
 
 latest_base = "691489"
-if df_history is not None and not df_history.empty and 0 in df_history.columns:
-    for raw_value in reversed(df_history[0].tolist()):
-        val_str = str(raw_value).strip()
-        if val_str.isdigit() and len(val_str) >= 6:
-            latest_base = val_str[:6]
+if df_history is not None and not df_history.empty:
+    col_name = "special" if "special" in df_history.columns else df_history.columns[0]
+    for raw_val in df_history[col_name].tolist():
+        v_str = str(raw_val).strip()
+        if v_str.isdigit() and len(v_str) >= 6:
+            latest_base = v_str[:6]
             break
 
 # ==========================================
@@ -276,20 +295,31 @@ if df_history is not None and not df_history.empty and 0 in df_history.columns:
 # ==========================================
 if menu == "1. อัปเดตผลรางวัล":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่ (บันทึกแยกรายวัน + ไฟล์หลักอัตโนมัติ)")
+    st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่")
     
     with st.form("update_form"):
-        input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 04/11/2026)")
+        input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 04/11/2569)")
         input_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):")
         submitted = st.form_submit_button("บันทึกผลรางวัล")
         
         if submitted:
             if len(input_6d) >= 6 and input_6d.isdigit():
+                val_6d = input_6d[:6]
                 val_4d = input_6d[-4:]
-                new_row = pd.DataFrame([[input_6d, val_4d]])
+                val_3d = input_6d[-3:]
+                val_2d = input_6d[-2:]
+                
+                new_row = pd.DataFrame([{
+                    "date": input_date,
+                    "special": val_6d,
+                    "first_prize": val_4d,
+                    "top_3": val_3d,
+                    "bottom_2": val_2d
+                }])
                 
                 # 1. บันทึกลงไฟล์หลัก history_lao.csv
-                new_row.to_csv(CSV_FILE_MAIN, mode="a", header=False, index=False, encoding="utf-8")
+                main_exists = os.path.exists(CSV_FILE_MAIN)
+                new_row.to_csv(CSV_FILE_MAIN, mode="a", header=not main_exists, index=False, encoding="utf-8")
                 
                 # 2. บันทึกลงไฟล์แยกรายวันอัตโนมัติจากวันที่กรอก
                 try:
@@ -297,10 +327,12 @@ if menu == "1. อัปเดตผลรางวัล":
                     day_en = dt_obj.strftime("%A")
                     day_code = DAY_MAP.get(day_en, "mon")
                     daily_filename = f"history_lao_{day_code}.csv"
-                    new_row.to_csv(daily_filename, mode="a", header=False, index=False, encoding="utf-8")
-                    st.success(f"บันทึกข้อมูลเลข {input_6d} ลงในไฟล์หลักและไฟล์ประจำวัน ({day_en}) เรียบร้อยแล้ว!")
+                    
+                    daily_exists = os.path.exists(daily_filename)
+                    new_row.to_csv(daily_filename, mode="a", header=not daily_exists, index=False, encoding="utf-8")
+                    st.success(f"✅ บันทึกข้อมูลลงในไฟล์หลักและ `{daily_filename}` เรียบร้อยแล้ว!")
                 except Exception:
-                    st.success(f"บันทึกข้อมูลเลข {input_6d} ลงไฟล์หลักเรียบร้อยแล้ว! (รูปแบบวันที่อาจไม่ตรงเพื่อบันทึกไฟล์รายวันอัตโนมัติ)")
+                    st.success(f"✅ บันทึกข้อมูลลงไฟล์หลักเรียบร้อยแล้ว!")
                 
                 st.rerun()
             else:
@@ -318,11 +350,11 @@ elif menu == "3. ลบข้อมูลงวดล่าสุด":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🗑️ ลบข้อมูลงวดล่าสุดออกจากระบบ")
     if df_history is not None and not df_history.empty:
-        st.write("ข้อมูลแถวสุดท้ายปัจจุบัน:")
-        st.write(df_history.tail(1))
+        st.write("ข้อมูลแถวแรกสุดปัจจุบัน (งวดล่าสุด):")
+        st.write(df_history.head(1))
         if st.button("❌ ยืนยันลบข้อมูลงวดล่าสุด", type="primary"):
-            df_history = df_history.iloc[:-1]
-            df_history.to_csv(CSV_FILE_MAIN, header=False, index=False, encoding="utf-8")
+            df_history = df_history.iloc[1:].reset_index(drop=True)
+            df_history.to_csv(CSV_FILE_MAIN, index=False, encoding="utf-8")
             st.success("ลบข้อมูลงวดล่าสุดเรียบร้อยแล้ว!")
             st.rerun()
     else:
@@ -333,16 +365,17 @@ elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
     st.markdown("### 🏆 Formula Ranking (จัดอันดับความแม่นยำ 15 สูตร)")
     if df_history is not None and not df_history.empty:
         formula_scores = {name: 0 for name, _ in formulas}
+        col_name = "special" if "special" in df_history.columns else df_history.columns[0]
+        
         for idx, row in df_history.iterrows():
-            for val in row:
-                v_str = str(val).strip()
-                if v_str.isdigit() and len(v_str) >= 6:
-                    for name, func in formulas:
-                        try:
-                            func(v_str)
-                            formula_scores[name] += 1
-                        except:
-                            pass
+            v_str = str(row[col_name]).strip()
+            if v_str.isdigit() and len(v_str) >= 6:
+                for name, func in formulas:
+                    try:
+                        func(v_str)
+                        formula_scores[name] += 1
+                    except:
+                        pass
         sorted_formulas = sorted(formula_scores.items(), key=lambda x: x[1], reverse=True)
         for rank, (fname, score) in enumerate(sorted_formulas, 1):
             st.write(f"**{rank}. {fname}** — คะแนนประสิทธิภาพ: {score}")
@@ -362,8 +395,10 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
     latest_all = latest_base
     df_day_specific = load_specific_day_history(day_selected)
     latest_day = latest_all
-    if df_day_specific is not None and not df_day_specific.empty and 0 in df_day_specific.columns:
-        for raw_val in reversed(df_day_specific[0].tolist()):
+    
+    if df_day_specific is not None and not df_day_specific.empty:
+        col_name = "special" if "special" in df_day_specific.columns else df_day_specific.columns[0]
+        for raw_val in df_day_specific[col_name].tolist():
             v_str = str(raw_val).strip()
             if v_str.isdigit() and len(v_str) >= 6:
                 latest_day = v_str[:6]
@@ -384,7 +419,6 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
         if day_selected == "Saturday":
             st.warning("⚠️ [AI WARNING] วันเสาร์มีสถิติการออกเลขเบิ้ลหรือหามสูง แนะนำให้ระวังเป็นพิเศษ!")
 
-        # คำนวณสูตรจาก 2 แหล่งหลัก (งวดรวมล่าสุด + งวดรายวันล่าสุด)
         outputs_all = {}
         outputs_day = {}
         
@@ -399,26 +433,24 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
             except Exception:
                 pass
 
-        # ระบบให้คะแนนและถ่วงน้ำหนัก (3-Way Fusion Score)
         digit_scores = {str(i): 0.0 for i in range(10)}
 
-        # ส่วนที่ 1: เลขประจำวันให้โบนัสสูงสุด (+2.0 แต้ม)
+        # 1. เลขประจำวันให้โบนัสสูงสุด (+2.0 แต้ม)
         for d in daily_6:
             digit_scores[d] += 2.0
 
-        # ส่วนที่ 2: คะแนนจากสูตรของงวดรวมล่าสุด
+        # 2. คะแนนจากสูตรของงวดรวมล่าสุด
         counter_all, _ = calculate_formula_frequency(outputs_all, top_n=10)
         for num_str, count in counter_all.items():
             for d in num_str:
                 digit_scores[d] += float(count) * 0.3
 
-        # ส่วนที่ 3: คะแนนจากสูตรของงวดรายวันล่าสุด
+        # 3. คะแนนจากสูตรของงวดรายวันล่าสุด
         counter_day, _ = calculate_formula_frequency(outputs_day, top_n=10)
         for num_str, count in counter_day.items():
             for d in num_str:
                 digit_scores[d] += float(count) * 0.3
 
-        # จัดลำดับคะแนนรวม
         sorted_digits = sorted(digit_scores.keys(), key=lambda k: digit_scores[k], reverse=True)
         top_digits_merged = [(d, digit_scores[d]) for d in sorted_digits[:display_count]]
         digits_only = [item[0] for item in top_digits_merged]
