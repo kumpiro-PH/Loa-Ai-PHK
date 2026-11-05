@@ -1,6 +1,7 @@
+# app.py - Lao AI Professional v4.0 (Streamlit Web App)
+import os
 import streamlit as st
 import pandas as pd
-import os
 from datetime import datetime
 from collections import Counter
 from itertools import combinations
@@ -100,7 +101,7 @@ CSV_FILE_NAME = "history_lao.csv"
 # 2. ฟังก์ชันจัดการ CSV และ สูตรคำนวณ (1-15)
 # ==========================================
 def load_csv_data(filename):
-    """อ่าน CSV ใหม่ทุกครั้ง และเก็บตัวเลขเป็นข้อความเพื่อรักษาเลขศูนย์นำหน้า"""
+    """อ่าน CSV และเก็บตัวเลขเป็นข้อความเพื่อรักษาเลขศูนย์นำหน้า"""
     if os.path.exists(filename):
         try:
             df = pd.read_csv(filename, header=None, dtype=str, keep_default_na=False)
@@ -237,7 +238,7 @@ menu = st.sidebar.selectbox(
 
 df_history = load_csv_data(CSV_FILE_NAME)
 
-# ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV (ไฟล์นี้ไม่มี Header)
+# ค้นหาเลขฐานล่าสุดจากแถวสุดท้ายของ CSV
 latest_base = "691489"
 if df_history is not None and not df_history.empty and 0 in df_history.columns:
     for raw_value in reversed(df_history[0].tolist()):
@@ -254,7 +255,7 @@ if menu == "1. อัปเดตผลรางวัล":
     st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่")
     
     with st.form("update_form"):
-        input_date = st.text_input("ใ่วันที่ (DD/MM/YYYY เช่น 04/11/2026)")
+        input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 04/11/2026)")
         input_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):")
         submitted = st.form_submit_button("บันทึกผลรางวัล")
         
@@ -277,7 +278,7 @@ if menu == "1. อัปเดตผลรางวัล":
 elif menu == "2. แสดงประวัติ (History)":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 📂 แสดงประวัติข้อมูลสถิติย้อนหลัง (history_lao.csv)")
-    if df_history is not None:
+    if df_history is not None and not df_history.empty:
         st.dataframe(df_history, use_container_width=True)
     else:
         st.warning("⚠️ ยังไม่พบข้อมูลประวัติ CSV")
@@ -308,7 +309,6 @@ elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
     
     if df_history is not None and not df_history.empty:
         formula_scores = {name: 0 for name, _ in formulas}
-        # วิเคราะห์จำลองจากประวัติย้อนหลังทั้งหมด
         for idx, row in df_history.iterrows():
             for val in row:
                 v_str = str(val).strip()
@@ -322,6 +322,8 @@ elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
         sorted_formulas = sorted(formula_scores.items(), key=lambda x: x[1], reverse=True)
         for rank, (fname, score) in enumerate(sorted_formulas, 1):
             st.write(f"**{rank}. {fname}** — คะแนนประสิทธิภาพ: {score}")
+    else:
+        st.warning("ยังไม่มีข้อมูลสำหรับจัดอันดับสูตร")
 
 elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
     st.title("🧠 Lao AI Professional")
