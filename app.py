@@ -10,7 +10,7 @@ from itertools import combinations
 # 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
 # ==========================================
 st.set_page_config(
-    page_title="Lao AI Professional v4.1",
+    page_title="หวยลาวพัฒนา v4.1",
     page_icon="🧠",
     layout="centered"
 )
