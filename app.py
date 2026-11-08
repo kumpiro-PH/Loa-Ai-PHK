@@ -172,7 +172,7 @@ def load_csv_data_from_github(filename):
     return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
 def save_history_to_github(target_day_code, new_row_df):
-    """บันทึกและซิงก์ข้อมูล CSV ตรงขึ้น GitHub ผ่าน API อัตโนมัติ"""
+    """บันทึกและซิงก์ข้อมูล CSV ตรงขึ้น GitHub ผ่าน API พร้อมแสดงข้อความ Error ละเอียด"""
     filename = f"history_lao_{target_day_code}.csv"
     github_token = st.secrets.get("GITHUB_TOKEN")
     repo_name = st.secrets.get("GITHUB_REPO")
@@ -188,7 +188,7 @@ def save_history_to_github(target_day_code, new_row_df):
     }
     file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}"
     
-    # 1. ดึงไฟล์เดิมมาจาก GitHub เพื่อเอา SHA และข้อมูลเดิม
+    # 1. ดึงไฟล์เดิมมาจาก GitHub เพื่อเอา SHA
     res = requests.get(file_url, headers=headers)
     file_sha = None
     existing_df = pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
@@ -199,25 +199,27 @@ def save_history_to_github(target_day_code, new_row_df):
         content_decoded = base64.b64decode(file_data["content"]).decode("utf-8")
         existing_df = pd.read_csv(StringIO(content_decoded), dtype=str, keep_default_na=False)
         existing_df.columns = existing_df.columns.str.strip()
+    elif res.status_code != 404:
+        st.warning(f"⚠️ สถานะการดึงไฟล์เดิม (Status {res.status_code}): {res.text}")
         
-    # 2. รวมข้อมูลใหม่กับข้อมูลเดิม (กรองวันที่ซ้ำออก)
+    # 2. รวมข้อมูลใหม่กับข้อมูลเดิม
     new_date = new_row_df.iloc[0]["date"]
     if not existing_df.empty and "date" in existing_df.columns:
         existing_df = existing_df[existing_df["date"] != new_date]
         
     updated_df = pd.concat([new_row_df, existing_df], ignore_index=True)
     
-    # 3. จัดเรียงวันที่จากใหม่ไปเก่าเสมอ
+    # 3. จัดเรียงวันที่จากใหม่ไปเก่า
     if "date" in updated_df.columns:
         updated_df["_temp_date"] = updated_df["date"].apply(parse_date_for_sort)
         updated_df = updated_df.sort_values(by="_temp_date", ascending=False, na_position="last")
         updated_df = updated_df.drop(columns=["_temp_date"])
         
-    # 4. แปลงเป็น CSV string และเข้ารหัส Base64
+    # 4. แปลงเป็น CSV และ Base64
     csv_string = updated_df.to_csv(index=False, encoding="utf-8")
     encoded_content = base64.b64encode(csv_string.encode("utf-8")).decode("utf-8")
     
-    # 5. ส่งคำขอ PUT ไปที่ GitHub API เพื่อ Commit อัตโนมัติ
+    # 5. ส่งคำขอ PUT ไปที่ GitHub API
     payload = {
         "message": f"Update {filename} for {new_date} via Streamlit App",
         "content": encoded_content,
@@ -227,7 +229,13 @@ def save_history_to_github(target_day_code, new_row_df):
         payload["sha"] = file_sha
         
     put_res = requests.put(file_url, headers=headers, json=payload)
-    return put_res.status_code in [200, 201]
+    
+    if put_res.status_code in [200, 201]:
+        return True
+    else:
+        # พิมพ์ข้อความ Error ดิบๆ จาก GitHub ลงหน้าเว็บทันที
+        st.error(f"❌ GitHub API Error ({put_res.status_code}): {put_res.text}")
+        return False
 
 def load_specific_day_history(day_en):
     day_code = DAY_MAP.get(day_en, "mon")
