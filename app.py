@@ -295,14 +295,14 @@ if df_history is not None and not df_history.empty:
 # ==========================================
 if menu == "1. อัปเดตผลรางวัล":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 📝 อัปเดตผลรางวัลหวยลาว")
+    st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่")
     
-    # สร้างแท็บย่อยเพื่อแยกการอัปเดตแบบทั่วไปและแบบระบุวัน จันทร์-ศุกร์
-    tab1, tab2 = st.tabs(["📌 อัปเดตผลรางวัลทั่วไป (ตามวันที่)", "📅 อัปเดต/เพิ่มข้อมูลแยกรายวัน (Mon-Fri)"])
+    # สร้างแท็บแยกเพื่อให้ช่องอัปเดตข้อมูลแสดงผลชัดเจนและไม่ทับซ้อนกัน
+    tab1, tab2 = st.tabs(["📌 อัปเดตผลรางวัลทั่วไป (ตามวันที่)", "📅 อัปเดตข้อมูลล่าสุดแยกรายวัน (Mon-Fri)"])
     
     with tab1:
         with st.form("update_form"):
-            input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 04/11/2569)")
+            input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 08/11/2026)")
             input_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):")
             submitted = st.form_submit_button("บันทึกผลรางวัลทั่วไป")
             
@@ -343,14 +343,14 @@ if menu == "1. อัปเดตผลรางวัล":
                     st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
 
     with tab2:
-        st.markdown("#### 🛠️ บันทึกข้อมูลเจาะจงวันในสัปดาห์ (Monday - Friday)")
+        st.markdown("#### 🛠️ อัปเดตข้อมูลล่าสุดแยกตามวันในสัปดาห์ (Mon-Fri)")
         with st.form("update_specific_day_form"):
             selected_day_target = st.selectbox(
-                "เลือกวันที่ต้องการอัปเดตข้อมูล:",
+                "เลือกวันของงวดที่ต้องการอัปเดต:",
                 ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
             )
-            spec_date = st.text_input("ใส่วันที่ของงวดนี้ (DD/MM/YYYY):", key="spec_date")
-            spec_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):", key="spec_6d")
+            spec_date = st.text_input("ใส่วันที่ (DD/MM/YYYY):", key="spec_date")
+            spec_6d = st.text_input("เลขฐาน / รางวัล 6 หลักล่าสุด:", key="spec_6d")
             submitted_spec = st.form_submit_button(f"บันทึกข้อมูล {selected_day_target}")
             
             if submitted_spec:
@@ -368,18 +368,18 @@ if menu == "1. อัปเดตผลรางวัล":
                         "bottom_2": val_2d
                     }])
                     
-                    # บันทึกลงไฟล์เฉพาะวันนั้นๆ โดยตรง (เช่น history_lao_mon.csv)
+                    # บันทึกลงไฟล์เฉพาะวันนั้นๆ (เช่น history_lao_mon.csv)
                     day_code = DAY_MAP.get(selected_day_target, "mon")
                     target_filename = f"history_lao_{day_code}.csv"
                     
                     target_exists = os.path.exists(target_filename)
                     new_row_spec.to_csv(target_filename, mode="a", header=not target_exists, index=False, encoding="utf-8")
                     
-                    # บันทึกลงไฟล์หลัก history_lao.csv ด้วยเพื่อให้ข้อมูลซิงค์กัน
+                    # ซิงค์ข้อมูลเข้าไฟล์หลัก history_lao.csv
                     main_exists = os.path.exists(CSV_FILE_MAIN)
                     new_row_spec.to_csv(CSV_FILE_MAIN, mode="a", header=not main_exists, index=False, encoding="utf-8")
                     
-                    st.success(f"✅ บันทึกข้อมูลเข้าสู่ `{target_filename}` และไฟล์หลักเรียบร้อยแล้ว!")
+                    st.success(f"✅ อัปเดตและบันทึกข้อมูลเข้าสู่ `{target_filename}` เรียบร้อยแล้ว!")
                     st.rerun()
                 else:
                     st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
