@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (Full Complete Code with Corrected Latest Row Retrieval)
+# app.py - Lao AI Professional v4.1 (Full Complete Code with Mon-Fri CSV History Integration)
 import os
 import streamlit as st
 import pandas as pd
@@ -161,6 +161,21 @@ def load_specific_day_history(day_en):
     filename = f"history_lao_{day_code}.csv"
     return load_csv_data(filename)
 
+def load_weekday_history():
+    """โหลดและรวมข้อมูลประวัติจากวันจันทร์ถึงวันศุกร์ (Mon-Fri) เข้าด้วยกัน"""
+    weekday_codes = ["mon", "tue", "wed", "thu", "fri"]
+    dfs = []
+    for code in weekday_codes:
+        filename = f"history_lao_{code}.csv"
+        df_temp = load_csv_data(filename)
+        if df_temp is not None and not df_temp.empty:
+            dfs.append(df_temp)
+    
+    if dfs:
+        combined_df = pd.concat(dfs, ignore_index=True)
+        return combined_df
+    return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
+
 def formula5(number):
     digits = [int(x) for x in number]
     score = Counter()
@@ -271,15 +286,17 @@ menu = st.sidebar.selectbox(
     "",
     [
         "1. อัปเดตผลรางวัล",
-        "2. แสดงประวัติ (History)",
-        "3. ลบข้อมูลงวดล่าสุด",
-        "4. Formula Ranking (จัดอันดับสูตร)",
-        "5. Forward Prediction (ทำนายงวดถัดไป)"
+        "2. แสดงประวัติ (History ทั้งหมด)",
+        "3. แสดงประวัติ Mon-Fri (จันทร์-ศุกร์)",
+        "4. ลบข้อมูลงวดล่าสุด",
+        "5. Formula Ranking (จัดอันดับสูตร)",
+        "6. Forward Prediction (ทำนายงวดถัดไป)"
     ],
     label_visibility="collapsed"
 )
 
 df_history = load_csv_data(CSV_FILE_MAIN)
+df_weekday = load_weekday_history()
 
 latest_base = "691489"
 if df_history is not None and not df_history.empty:
@@ -338,7 +355,7 @@ if menu == "1. อัปเดตผลรางวัล":
             else:
                 st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
 
-elif menu == "2. แสดงประวัติ (History)":
+elif menu == "2. แสดงประวัติ (History ทั้งหมด)":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 📂 แสดงประวัติข้อมูลสถิติย้อนหลัง (history_lao.csv)")
     if df_history is not None and not df_history.empty:
@@ -346,7 +363,16 @@ elif menu == "2. แสดงประวัติ (History)":
     else:
         st.warning("⚠️ ยังไม่พบข้อมูลประวัติ CSV")
 
-elif menu == "3. ลบข้อมูลงวดล่าสุด":
+elif menu == "3. แสดงประวัติ Mon-Fri (จันทร์-ศุกร์)":
+    st.title("🧠 Lao AI Professional")
+    st.markdown("### 📂 แสดงประวัติสถิติรวมเฉพาะวันจันทร์ - วันศุกร์ (Mon-Fri)")
+    if df_weekday is not None and not df_weekday.empty:
+        st.info(f"พบข้อมูลประวัติย้อนหลังทั้งหมด {len(df_weekday)} รายการ จากไฟล์รายวัน (Mon - Fri)")
+        st.dataframe(df_weekday, use_container_width=True)
+    else:
+        st.warning("⚠️ ยังไม่พบข้อมูลประวัติในกลุ่มไฟล์วันจันทร์ - วันศุกร์ (`history_lao_mon.csv` ถึง `history_lao_fri.csv`)")
+
+elif menu == "4. ลบข้อมูลงวดล่าสุด":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🗑️ ลบข้อมูลงวดล่าสุดออกจากระบบ")
     if df_history is not None and not df_history.empty:
@@ -360,7 +386,7 @@ elif menu == "3. ลบข้อมูลงวดล่าสุด":
     else:
         st.warning("ไม่มีข้อมูลให้ลบ")
 
-elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
+elif menu == "5. Formula Ranking (จัดอันดับสูตร)":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🏆 Formula Ranking (จัดอันดับความแม่นยำ 15 สูตร)")
     if df_history is not None and not df_history.empty:
@@ -382,7 +408,7 @@ elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
     else:
         st.warning("ยังไม่มีข้อมูลสำหรับจัดอันดับสูตร")
 
-elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
+elif menu == "6. Forward Prediction (ทำนายงวดถัดไป)":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🔮 Forward Prediction (คำนวณผสานสถิติ 3 แหล่งข้อมูล)")
     
