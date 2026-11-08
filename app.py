@@ -292,7 +292,7 @@ menu = st.sidebar.selectbox(
 # 4. MAIN CONTENT
 # ==========================================
 if menu == "1. อัปเดตผลรางวัล":
-    st.title("🧠 Lao AI Professional")
+    st.title("🧠 หวยลาวพัฒนา ")
     st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่ (บันทึกเฉพาะวันจันทร์-ศุกร์)")
     
     with st.form("update_form"):
