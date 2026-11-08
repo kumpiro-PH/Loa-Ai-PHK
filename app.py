@@ -392,9 +392,20 @@ elif menu == "4. Forward Prediction (ทำนายงวดถัดไป)":
         ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
     )
 
-    # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน (และสลับเอาตัวล่าสุดขึ้นมา)
+    # 1. เลขฐานจากข้อมูลรวม Mon-Fri ล่าสุด
+    df_weekday_all = load_weekday_history()
+    latest_all = "691489"
+    if df_weekday_all is not None and not df_weekday_all.empty:
+        col_name = "special" if "special" in df_weekday_all.columns else df_weekday_all.columns[0]
+        for raw_val in reversed(df_weekday_all[col_name].tolist()):
+            v_str = str(raw_val).strip()
+            if v_str.isdigit() and len(v_str) >= 6:
+                latest_all = v_str[:6]
+                break
+
+    # 2. เลขฐานจากงวดประจำวันล่าสุด (เช่น วันจันทร์ล่าสุด)
     df_day_specific = load_specific_day_history(day_selected)
-    latest_day = "691489"
+    latest_day = latest_all
     if df_day_specific is not None and not df_day_specific.empty:
         col_day = "special" if "special" in df_day_specific.columns else df_day_specific.columns[0]
         for raw_val in reversed(df_day_specific[col_day].tolist()):
@@ -403,7 +414,12 @@ elif menu == "4. Forward Prediction (ทำนายงวดถัดไป)":
                 latest_day = v_str[:6]
                 break
 
-    st.success(f"📌 **งวดประจำวัน {day_selected} ล่าสุด**\n\nเลขฐาน 6 หลัก: `{latest_day}`\n\n3 ตัว/4 ตัว: `{latest_day[-3:]}` / `{latest_day[-4:]}`")
+    # แสดงผลเปรียบเทียบ 2 คอลัมน์ (ซ้าย-ขวา)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.info(f"📊 **งวดรวม Mon-Fri ล่าสุด**\n\nเลขฐาน 6 หลัก: `{latest_all}`\n\n3 ตัว/4 ตัว: `{latest_all[-3:]}` / `{latest_all[-4:]}`")
+    with col_b:
+        st.success(f"📌 **งวดประจำวัน {day_selected} ล่าสุด**\n\nเลขฐาน 6 หลัก: `{latest_day}`\n\n3 ตัว/4 ตัว: `{latest_day[-3:]}` / `{latest_day[-4:]}`")
 
     daily_6 = DAILY_NUMBERS.get(day_selected, "000000")
     st.write(f"🎯 **ชุดเลขประจำวัน ({day_selected}):** `{daily_6}`")
@@ -411,10 +427,14 @@ elif menu == "4. Forward Prediction (ทำนายงวดถัดไป)":
     display_count = st.radio("เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:", [5, 6], index=1, horizontal=True)
 
     if st.button("🚀 ประมวลผลทำนายเลข (ผสานข้อมูล)", type="primary", use_container_width=True):
+        outputs_all = {}
         outputs_day = {}
         
         for name, func in formulas:
             try:
+                res_a = str(func(latest_all)).strip()
+                if res_a.isdigit():
+                    outputs_all[name] = res_a.zfill(4)[-4:]
                 res_d = str(func(latest_day)).strip()
                 if res_d.isdigit():
                     outputs_day[name] = res_d.zfill(4)[-4:]
@@ -423,21 +443,27 @@ elif menu == "4. Forward Prediction (ทำนายงวดถัดไป)":
 
         digit_scores = {str(i): 0.0 for i in range(10)}
 
-        # 1. เลขประจำวันให้โบนัสสูงสุด (+2.0 แต้ม)
+        # เลขประจำวันให้โบนัสสูงสุด (+2.0 แต้ม)
         for d in daily_6:
             digit_scores[d] += 2.0
 
-        # 2. คะแนนจากสูตรของงวดรายวันล่าสุด
+        # คะแนนจากสูตรของงวดรวม Mon-Fri ล่าสุด
+        counter_all, _ = calculate_formula_frequency(outputs_all, top_n=10)
+        for num_str, count in counter_all.items():
+            for d in num_str:
+                digit_scores[d] += float(count) * 0.3
+
+        # คะแนนจากสูตรของงวดรายวันล่าสุด
         counter_day, _ = calculate_formula_frequency(outputs_day, top_n=10)
         for num_str, count in counter_day.items():
             for d in num_str:
-                digit_scores[d] += float(count) * 0.5
+                digit_scores[d] += float(count) * 0.3
 
         sorted_digits = sorted(digit_scores.keys(), key=lambda k: digit_scores[k], reverse=True)
         top_digits_merged = [(d, digit_scores[d]) for d in sorted_digits[:display_count]]
         digits_only = [item[0] for item in top_digits_merged]
 
-        st.markdown(f"### 📊 ผลลัพธ์เลขเด่น ({day_selected})")
+        st.markdown(f"### 📊 ผลลัพธ์เลขเด่นผสาน ({day_selected})")
         
         if top_digits_merged:
             html_parts = ['<div class="grid-container">']
@@ -448,7 +474,7 @@ elif menu == "4. Forward Prediction (ทำนายงวดถัดไป)":
 
         if len(digits_only) >= 3:
             st.markdown("---")
-            st.markdown("### 🎯 ชุดจับคู่เลขเด่น (จากผลการวิเคราะห์)")
+            st.markdown("### 🎯 ชุดจับคู่เลขเด่น (จากผลการวิเคราะห์ผสาน)")
 
             pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
             pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
