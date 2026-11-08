@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (Full Complete Code with Mon-Fri CSV History Integration)
+# app.py - Lao AI Professional v4.1 (Mon-Fri Only Version)
 import os
 import streamlit as st
 import pandas as pd
@@ -94,8 +94,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-VERSION = "4.1 WEB 3-WAY FUSION"
-CSV_FILE_MAIN = "history_lao.csv"
+VERSION = "4.1 WEB MON-FRI FUSION"
 
 DAY_MAP = {
     "Monday": "mon",
@@ -103,8 +102,6 @@ DAY_MAP = {
     "Wednesday": "wed",
     "Thursday": "thu",
     "Friday": "fri",
-    "Saturday": "sat",
-    "Sunday": "sun",
 }
 
 DAILY_NUMBERS = {
@@ -113,8 +110,6 @@ DAILY_NUMBERS = {
     "Wednesday": "394517",
     "Thursday": "643951",
     "Friday": "974516",
-    "Saturday": "820739",
-    "Sunday": "470076",
 }
 
 # ==========================================
@@ -162,7 +157,7 @@ def load_specific_day_history(day_en):
     return load_csv_data(filename)
 
 def load_weekday_history():
-    """โหลดและรวมข้อมูลประวัติจากวันจันทร์ถึงวันศุกร์ (Mon-Fri) เข้าด้วยกัน"""
+    """โหลดและรวมข้อมูลประวัติเฉพาะวันจันทร์ถึงวันศุกร์ (Mon-Fri) เข้าด้วยกัน"""
     weekday_codes = ["mon", "tue", "wed", "thu", "fri"]
     dfs = []
     for code in weekday_codes:
@@ -286,22 +281,19 @@ menu = st.sidebar.selectbox(
     "",
     [
         "1. อัปเดตผลรางวัล",
-        "2. แสดงประวัติ (History ทั้งหมด)",
-        "3. แสดงประวัติ Mon-Fri (จันทร์-ศุกร์)",
-        "4. ลบข้อมูลงวดล่าสุด",
-        "5. Formula Ranking (จัดอันดับสูตร)",
-        "6. Forward Prediction (ทำนายงวดถัดไป)"
+        "2. แสดงประวัติ Mon-Fri (จันทร์-ศุกร์)",
+        "3. Formula Ranking (จัดอันดับสูตร)",
+        "4. Forward Prediction (ทำนายงวดถัดไป)"
     ],
     label_visibility="collapsed"
 )
 
-df_history = load_csv_data(CSV_FILE_MAIN)
 df_weekday = load_weekday_history()
 
 latest_base = "691489"
-if df_history is not None and not df_history.empty:
-    col_name = "special" if "special" in df_history.columns else df_history.columns[0]
-    for raw_val in reversed(df_history[col_name].tolist()):
+if df_weekday is not None and not df_weekday.empty:
+    col_name = "special" if "special" in df_weekday.columns else df_weekday.columns[0]
+    for raw_val in reversed(df_weekday[col_name].tolist()):
         v_str = str(raw_val).strip()
         if v_str.isdigit() and len(v_str) >= 6:
             latest_base = v_str[:6]
@@ -312,7 +304,7 @@ if df_history is not None and not df_history.empty:
 # ==========================================
 if menu == "1. อัปเดตผลรางวัล":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่")
+    st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่ (บันทึกเฉพาะวันจันทร์-ศุกร์)")
     
     with st.form("update_form"):
         input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 04/11/2569)")
@@ -334,66 +326,43 @@ if menu == "1. อัปเดตผลรางวัล":
                     "bottom_2": val_2d
                 }])
                 
-                # 1. บันทึกลงไฟล์หลัก history_lao.csv
-                main_exists = os.path.exists(CSV_FILE_MAIN)
-                new_row.to_csv(CSV_FILE_MAIN, mode="a", header=not main_exists, index=False, encoding="utf-8")
-                
-                # 2. บันทึกลงไฟล์แยกรายวันอัตโนมัติจากวันที่กรอก
+                # บันทึกลงไฟล์แยกรายวันอัตโนมัติ (เฉพาะ Mon-Fri)
                 try:
                     dt_obj = datetime.strptime(input_date.strip(), "%d/%m/%Y")
                     day_en = dt_obj.strftime("%A")
-                    day_code = DAY_MAP.get(day_en, "mon")
-                    daily_filename = f"history_lao_{day_code}.csv"
                     
-                    daily_exists = os.path.exists(daily_filename)
-                    new_row.to_csv(daily_filename, mode="a", header=not daily_exists, index=False, encoding="utf-8")
-                    st.success(f"✅ บันทึกข้อมูลลงในไฟล์หลักและ `{daily_filename}` เรียบร้อยแล้ว!")
-                except Exception:
-                    st.success(f"✅ บันทึกข้อมูลลงไฟล์หลักเรียบร้อยแล้ว!")
-                
-                st.rerun()
+                    if day_en not in DAY_MAP:
+                        st.error(f"❌ ไม่อนุญาตให้บันทึกข้อมูลของวัน {day_en} (ระบบรองรับเฉพาะวันจันทร์ - ศุกร์เท่านั้น)")
+                    else:
+                        day_code = DAY_MAP[day_en]
+                        daily_filename = f"history_lao_{day_code}.csv"
+                        
+                        daily_exists = os.path.exists(daily_filename)
+                        new_row.to_csv(daily_filename, mode="a", header=not daily_exists, index=False, encoding="utf-8")
+                        st.success(f"✅ บันทึกข้อมูลลงในไฟล์ `{daily_filename}` เรียบร้อยแล้ว!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาดในการตรวจสอบวันที่: {e}")
             else:
                 st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
 
-elif menu == "2. แสดงประวัติ (History ทั้งหมด)":
-    st.title("🧠 Lao AI Professional")
-    st.markdown("### 📂 แสดงประวัติข้อมูลสถิติย้อนหลัง (history_lao.csv)")
-    if df_history is not None and not df_history.empty:
-        st.dataframe(df_history, use_container_width=True)
-    else:
-        st.warning("⚠️ ยังไม่พบข้อมูลประวัติ CSV")
-
-elif menu == "3. แสดงประวัติ Mon-Fri (จันทร์-ศุกร์)":
+elif menu == "2. แสดงประวัติ Mon-Fri (จันทร์-ศุกร์)":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 📂 แสดงประวัติสถิติรวมเฉพาะวันจันทร์ - วันศุกร์ (Mon-Fri)")
     if df_weekday is not None and not df_weekday.empty:
         st.info(f"พบข้อมูลประวัติย้อนหลังทั้งหมด {len(df_weekday)} รายการ จากไฟล์รายวัน (Mon - Fri)")
         st.dataframe(df_weekday, use_container_width=True)
     else:
-        st.warning("⚠️ ยังไม่พบข้อมูลประวัติในกลุ่มไฟล์วันจันทร์ - วันศุกร์ (`history_lao_mon.csv` ถึง `history_lao_fri.csv`)")
+        st.warning("⚠️ ยังไม่พบข้อมูลประวัติในกลุ่มไฟล์วันจันทร์ - วันศุกร์")
 
-elif menu == "4. ลบข้อมูลงวดล่าสุด":
+elif menu == "3. Formula Ranking (จัดอันดับสูตร)":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 🗑️ ลบข้อมูลงวดล่าสุดออกจากระบบ")
-    if df_history is not None and not df_history.empty:
-        st.write("ข้อมูลแถวล่างสุดปัจจุบัน (งวดล่าสุดที่จะถูกลบ):")
-        st.write(df_history.tail(1))
-        if st.button("❌ ยืนยันลบข้อมูลงวดล่าสุด", type="primary"):
-            df_history = df_history.iloc[:-1].reset_index(drop=True)
-            df_history.to_csv(CSV_FILE_MAIN, index=False, encoding="utf-8")
-            st.success("ลบข้อมูลงวดล่าสุดเรียบร้อยแล้ว!")
-            st.rerun()
-    else:
-        st.warning("ไม่มีข้อมูลให้ลบ")
-
-elif menu == "5. Formula Ranking (จัดอันดับสูตร)":
-    st.title("🧠 Lao AI Professional")
-    st.markdown("### 🏆 Formula Ranking (จัดอันดับความแม่นยำ 15 สูตร)")
-    if df_history is not None and not df_history.empty:
+    st.markdown("### 🏆 Formula Ranking (จัดอันดับความแม่นยำ 15 สูตร จากข้อมูล Mon-Fri)")
+    if df_weekday is not None and not df_weekday.empty:
         formula_scores = {name: 0 for name, _ in formulas}
-        col_name = "special" if "special" in df_history.columns else df_history.columns[0]
+        col_name = "special" if "special" in df_weekday.columns else df_weekday.columns[0]
         
-        for idx, row in df_history.iterrows():
+        for idx, row in df_weekday.iterrows():
             v_str = str(row[col_name]).strip()
             if v_str.isdigit() and len(v_str) >= 6:
                 for name, func in formulas:
@@ -408,28 +377,18 @@ elif menu == "5. Formula Ranking (จัดอันดับสูตร)":
     else:
         st.warning("ยังไม่มีข้อมูลสำหรับจัดอันดับสูตร")
 
-elif menu == "6. Forward Prediction (ทำนายงวดถัดไป)":
+elif menu == "4. Forward Prediction (ทำนายงวดถัดไป)":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 🔮 Forward Prediction (คำนวณผสานสถิติ 3 แหล่งข้อมูล)")
+    st.markdown("### 🔮 Forward Prediction (คำนวณผสานสถิติ Mon-Fri)")
     
     day_selected = st.selectbox(
         "เลือกวันของงวดถัดไป / วันที่ต้องการวิเคราะห์",
-        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
     )
-
-    # ดึงข้อมืองวดรวมล่าสุดจากแถวล่างสุด
-    latest_all = latest_base
-    if df_history is not None and not df_history.empty:
-        col_name = "special" if "special" in df_history.columns else df_history.columns[0]
-        for raw_val in reversed(df_history[col_name].tolist()):
-            v_str = str(raw_val).strip()
-            if v_str.isdigit() and len(v_str) >= 6:
-                latest_all = v_str[:6]
-                break
 
     # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน
     df_day_specific = load_specific_day_history(day_selected)
-    latest_day = latest_all
+    latest_day = latest_base
     if df_day_specific is not None and not df_day_specific.empty:
         col_day = "special" if "special" in df_day_specific.columns else df_day_specific.columns[0]
         for raw_val in reversed(df_day_specific[col_day].tolist()):
@@ -438,29 +397,18 @@ elif menu == "6. Forward Prediction (ทำนายงวดถัดไป)":
                 latest_day = v_str[:6]
                 break
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.info(f"📊 **งวดรวมล่าสุด (`history_lao.csv`)**\n\nเลขฐาน 6 หลัก: `{latest_all}`\n\n3 ตัว/4 ตัว: `{latest_all[-3:]}` / `{latest_all[-4:]}`")
-    with col_b:
-        st.success(f"📌 **งวดประจำวัน {day_selected} ล่าสุด**\n\nเลขฐาน 6 หลัก: `{latest_day}`\n\n3 ตัว/4 ตัว: `{latest_day[-3:]}` / `{latest_day[-4:]}`")
+    st.success(f"📌 **งวดประจำวัน {day_selected} ล่าสุด**\n\nเลขฐาน 6 หลัก: `{latest_day}`\n\n3 ตัว/4 ตัว: `{latest_day[-3:]}` / `{latest_day[-4:]}`")
 
     daily_6 = DAILY_NUMBERS.get(day_selected, "000000")
     st.write(f"🎯 **ชุดเลขประจำวัน ({day_selected}):** `{daily_6}`")
 
     display_count = st.radio("เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:", [5, 6], index=1, horizontal=True)
 
-    if st.button("🚀 ประมวลผลทำนายเลข (ผสาน 3 ส่วน)", type="primary", use_container_width=True):
-        if day_selected == "Saturday":
-            st.warning("⚠️ [AI WARNING] วันเสาร์มีสถิติการออกเลขเบิ้ลหรือหามสูง แนะนำให้ระวังเป็นพิเศษ!")
-
-        outputs_all = {}
+    if st.button("🚀 ประมวลผลทำนายเลข (ผสานข้อมูล)", type="primary", use_container_width=True):
         outputs_day = {}
         
         for name, func in formulas:
             try:
-                res_a = str(func(latest_all)).strip()
-                if res_a.isdigit():
-                    outputs_all[name] = res_a.zfill(4)[-4:]
                 res_d = str(func(latest_day)).strip()
                 if res_d.isdigit():
                     outputs_day[name] = res_d.zfill(4)[-4:]
@@ -473,23 +421,17 @@ elif menu == "6. Forward Prediction (ทำนายงวดถัดไป)":
         for d in daily_6:
             digit_scores[d] += 2.0
 
-        # 2. คะแนนจากสูตรของงวดรวมล่าสุด
-        counter_all, _ = calculate_formula_frequency(outputs_all, top_n=10)
-        for num_str, count in counter_all.items():
-            for d in num_str:
-                digit_scores[d] += float(count) * 0.3
-
-        # 3. คะแนนจากสูตรของงวดรายวันล่าสุด
+        # 2. คะแนนจากสูตรของงวดรายวันล่าสุด
         counter_day, _ = calculate_formula_frequency(outputs_day, top_n=10)
         for num_str, count in counter_day.items():
             for d in num_str:
-                digit_scores[d] += float(count) * 0.3
+                digit_scores[d] += float(count) * 0.5
 
         sorted_digits = sorted(digit_scores.keys(), key=lambda k: digit_scores[k], reverse=True)
         top_digits_merged = [(d, digit_scores[d]) for d in sorted_digits[:display_count]]
         digits_only = [item[0] for item in top_digits_merged]
 
-        st.markdown(f"### 📊 ผลลัพธ์เลขเด่นผสาน 3 ส่วน ({day_selected})")
+        st.markdown(f"### 📊 ผลลัพธ์เลขเด่น ({day_selected})")
         
         if top_digits_merged:
             html_parts = ['<div class="grid-container">']
@@ -500,7 +442,7 @@ elif menu == "6. Forward Prediction (ทำนายงวดถัดไป)":
 
         if len(digits_only) >= 3:
             st.markdown("---")
-            st.markdown("### 🎯 ชุดจับคู่เลขเด่น (จากผลการวิเคราะห์ผสาน)")
+            st.markdown("### 🎯 ชุดจับคู่เลขเด่น (จากผลการวิเคราะห์)")
 
             pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
             pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
