@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (3-Way Fusion Mon-Fri Version)
+# app.py - Lao AI Professional v4.1 (3-Way Fusion Mon-Fri Version with Date Validation)
 import os
 import streamlit as st
 import pandas as pd
@@ -167,7 +167,6 @@ def load_combined_mon_fri():
     
     if all_dfs:
         combined = pd.concat(all_dfs, ignore_index=True)
-        # พยายามแปลงคอลัมน์ date เป็น datetime เพื่อเรียงลำดับ (ถ้าฟอร์แมต DD/MM/YYYY)
         try:
             combined['parsed_date'] = pd.to_datetime(combined['date'], format='%d/%m/%Y', errors='coerce')
             combined = combined.sort_values(by='parsed_date', na_position='last').drop(columns=['parsed_date'])
@@ -322,7 +321,19 @@ if menu == "1. อัปเดตผลรางวัล":
         submitted_spec = st.form_submit_button(f"บันทึกข้อมูล {selected_day_target}")
         
         if submitted_spec:
-            if len(spec_6d) >= 6 and spec_6d.isdigit():
+            # ตรวจสอบความถูกต้องของวันที่และวันในสัปดาห์
+            date_valid = False
+            try:
+                dt_obj = datetime.strptime(spec_date.strip(), "%d/%m/%Y")
+                actual_day_en = dt_obj.strftime("%A")
+                if actual_day_en == selected_day_target:
+                    date_valid = True
+                else:
+                    st.error(f"❌ วันที่กรอก ({spec_date}) ตรงกับวัน **{actual_day_en}** แต่คุณเลือกอัปเดตสำหรับวัน **{selected_day_target}** กรุณาตรวจสอบความถูกต้อง!")
+            except Exception:
+                st.error("❌ รูปแบบวันที่ไม่ถูกต้อง กรุณากรอกในรูปแบบ DD/MM/YYYY (เช่น 08/11/2026)")
+
+            if date_valid and len(spec_6d) >= 6 and spec_6d.isdigit():
                 val_6d = spec_6d[:6]
                 val_4d = spec_6d[-4:]
                 val_3d = spec_6d[-3:]
@@ -336,7 +347,7 @@ if menu == "1. อัปเดตผลรางวัล":
                     "bottom_2": val_2d
                 }])
                 
-                # บันทึกลงไฟล์เฉพาะวันนั้นๆ (เช่น history_lao_mon.csv)
+                # บันทึกลงไฟล์เฉพาะวันนั้นๆ โดยตรงเท่านั้น (ตัด history_lao.csv ออกแล้ว)
                 day_code = DAY_MAP.get(selected_day_target, "mon")
                 target_filename = f"history_lao_{day_code}.csv"
                 
@@ -345,7 +356,7 @@ if menu == "1. อัปเดตผลรางวัล":
                 
                 st.success(f"✅ บันทึกข้อมูลเข้าสู่ `{target_filename}` เรียบร้อยแล้ว!")
                 st.rerun()
-            else:
+            elif date_valid:
                 st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
 
 elif menu == "2. แสดงประวัติ (History Mon-Fri)":
