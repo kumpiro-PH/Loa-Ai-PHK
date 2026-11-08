@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (Mon-Fri Only Version)
+# app.py - Lao AI Professional v4.1 (Mon-Fri Separated & Latest First Version)
 import os
 import streamlit as st
 import pandas as pd
@@ -151,7 +151,7 @@ def load_csv_data(filename):
     return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
 def load_specific_day_history(day_en):
-    """โหลดข้อมูลเฉพาะไฟล์ CSV ประจำวันนั้นๆ เช่น history_lao_thu.csv"""
+    """โหลดข้อมูลเฉพาะไฟล์ CSV ประจำวันนั้นๆ เช่น history_lao_mon.csv"""
     day_code = DAY_MAP.get(day_en, "mon")
     filename = f"history_lao_{day_code}.csv"
     return load_csv_data(filename)
@@ -281,23 +281,12 @@ menu = st.sidebar.selectbox(
     "",
     [
         "1. อัปเดตผลรางวัล",
-        "2. แสดงประวัติ Mon-Fri (จันทร์-ศุกร์)",
+        "2. แสดงประวัติแยกรายวัน (Mon-Fri)",
         "3. Formula Ranking (จัดอันดับสูตร)",
         "4. Forward Prediction (ทำนายงวดถัดไป)"
     ],
     label_visibility="collapsed"
 )
-
-df_weekday = load_weekday_history()
-
-latest_base = "691489"
-if df_weekday is not None and not df_weekday.empty:
-    col_name = "special" if "special" in df_weekday.columns else df_weekday.columns[0]
-    for raw_val in reversed(df_weekday[col_name].tolist()):
-        v_str = str(raw_val).strip()
-        if v_str.isdigit() and len(v_str) >= 6:
-            latest_base = v_str[:6]
-            break
 
 # ==========================================
 # 4. MAIN CONTENT
@@ -346,18 +335,35 @@ if menu == "1. อัปเดตผลรางวัล":
             else:
                 st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
 
-elif menu == "2. แสดงประวัติ Mon-Fri (จันทร์-ศุกร์)":
+elif menu == "2. แสดงประวัติแยกรายวัน (Mon-Fri)":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 📂 แสดงประวัติสถิติรวมเฉพาะวันจันทร์ - วันศุกร์ (Mon-Fri)")
-    if df_weekday is not None and not df_weekday.empty:
-        st.info(f"พบข้อมูลประวัติย้อนหลังทั้งหมด {len(df_weekday)} รายการ จากไฟล์รายวัน (Mon - Fri)")
-        st.dataframe(df_weekday, use_container_width=True)
+    st.markdown("### 📂 แสดงประวัติสถิติย้อนหลัง (แยกรายวัน และแสดงงวดล่าสุดขึ้นก่อน)")
+    
+    selected_view_day = st.selectbox(
+        "เลือกวันที่ต้องการดูประวัติ:",
+        ["รวมทุกวัน (Mon-Fri)", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+    )
+    
+    if selected_view_day == "รวมทุกวัน (Mon-Fri)":
+        df_display = load_weekday_history()
+        title_text = "ทุกวัน (Mon-Fri)"
     else:
-        st.warning("⚠️ ยังไม่พบข้อมูลประวัติในกลุ่มไฟล์วันจันทร์ - วันศุกร์")
+        df_display = load_specific_day_history(selected_view_day)
+        title_text = f"วัน{selected_view_day}"
+        
+    if df_display is not None and not df_display.empty:
+        # จัดเรียงให้งวดล่าสุดขึ้นมาอยู่ด้านบนสุด
+        df_display = df_display.iloc[::-1].reset_index(drop=True)
+        
+        st.info(f"📌 พบข้อมูลของ **{title_text}** ทั้งหมด {len(df_display)} รายการ (เรียงจากงวดล่าสุดไปงวดเก่า)")
+        st.dataframe(df_display, use_container_width=True)
+    else:
+        st.warning(f"⚠️ ยังไม่พบข้อมูลประวัติของ {title_text}")
 
 elif menu == "3. Formula Ranking (จัดอันดับสูตร)":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🏆 Formula Ranking (จัดอันดับความแม่นยำ 15 สูตร จากข้อมูล Mon-Fri)")
+    df_weekday = load_weekday_history()
     if df_weekday is not None and not df_weekday.empty:
         formula_scores = {name: 0 for name, _ in formulas}
         col_name = "special" if "special" in df_weekday.columns else df_weekday.columns[0]
@@ -386,9 +392,9 @@ elif menu == "4. Forward Prediction (ทำนายงวดถัดไป)":
         ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
     )
 
-    # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน
+    # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน (และสลับเอาตัวล่าสุดขึ้นมา)
     df_day_specific = load_specific_day_history(day_selected)
-    latest_day = latest_base
+    latest_day = "691489"
     if df_day_specific is not None and not df_day_specific.empty:
         col_day = "special" if "special" in df_day_specific.columns else df_day_specific.columns[0]
         for raw_val in reversed(df_day_specific[col_day].tolist()):
