@@ -295,48 +295,94 @@ if df_history is not None and not df_history.empty:
 # ==========================================
 if menu == "1. อัปเดตผลรางวัล":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่")
+    st.markdown("### 📝 อัปเดตผลรางวัลหวยลาว")
     
-    with st.form("update_form"):
-        input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 04/11/2569)")
-        input_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):")
-        submitted = st.form_submit_button("บันทึกผลรางวัล")
-        
-        if submitted:
-            if len(input_6d) >= 6 and input_6d.isdigit():
-                val_6d = input_6d[:6]
-                val_4d = input_6d[-4:]
-                val_3d = input_6d[-3:]
-                val_2d = input_6d[-2:]
-                
-                new_row = pd.DataFrame([{
-                    "date": input_date,
-                    "special": val_6d,
-                    "first_prize": val_4d,
-                    "top_3": val_3d,
-                    "bottom_2": val_2d
-                }])
-                
-                # 1. บันทึกลงไฟล์หลัก history_lao.csv
-                main_exists = os.path.exists(CSV_FILE_MAIN)
-                new_row.to_csv(CSV_FILE_MAIN, mode="a", header=not main_exists, index=False, encoding="utf-8")
-                
-                # 2. บันทึกลงไฟล์แยกรายวันอัตโนมัติจากวันที่กรอก
-                try:
-                    dt_obj = datetime.strptime(input_date.strip(), "%d/%m/%Y")
-                    day_en = dt_obj.strftime("%A")
-                    day_code = DAY_MAP.get(day_en, "mon")
-                    daily_filename = f"history_lao_{day_code}.csv"
+    # สร้างแท็บย่อยเพื่อแยกการอัปเดตแบบทั่วไปและแบบระบุวัน จันทร์-ศุกร์
+    tab1, tab2 = st.tabs(["📌 อัปเดตผลรางวัลทั่วไป (ตามวันที่)", "📅 อัปเดต/เพิ่มข้อมูลแยกรายวัน (Mon-Fri)"])
+    
+    with tab1:
+        with st.form("update_form"):
+            input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 04/11/2569)")
+            input_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):")
+            submitted = st.form_submit_button("บันทึกผลรางวัลทั่วไป")
+            
+            if submitted:
+                if len(input_6d) >= 6 and input_6d.isdigit():
+                    val_6d = input_6d[:6]
+                    val_4d = input_6d[-4:]
+                    val_3d = input_6d[-3:]
+                    val_2d = input_6d[-2:]
                     
-                    daily_exists = os.path.exists(daily_filename)
-                    new_row.to_csv(daily_filename, mode="a", header=not daily_exists, index=False, encoding="utf-8")
-                    st.success(f"✅ บันทึกข้อมูลลงในไฟล์หลักและ `{daily_filename}` เรียบร้อยแล้ว!")
-                except Exception:
-                    st.success(f"✅ บันทึกข้อมูลลงไฟล์หลักเรียบร้อยแล้ว!")
-                
-                st.rerun()
-            else:
-                st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
+                    new_row = pd.DataFrame([{
+                        "date": input_date,
+                        "special": val_6d,
+                        "first_prize": val_4d,
+                        "top_3": val_3d,
+                        "bottom_2": val_2d
+                    }])
+                    
+                    # 1. บันทึกลงไฟล์หลัก history_lao.csv
+                    main_exists = os.path.exists(CSV_FILE_MAIN)
+                    new_row.to_csv(CSV_FILE_MAIN, mode="a", header=not main_exists, index=False, encoding="utf-8")
+                    
+                    # 2. บันทึกลงไฟล์แยกรายวันอัตโนมัติจากวันที่กรอก
+                    try:
+                        dt_obj = datetime.strptime(input_date.strip(), "%d/%m/%Y")
+                        day_en = dt_obj.strftime("%A")
+                        day_code = DAY_MAP.get(day_en, "mon")
+                        daily_filename = f"history_lao_{day_code}.csv"
+                        
+                        daily_exists = os.path.exists(daily_filename)
+                        new_row.to_csv(daily_filename, mode="a", header=not daily_exists, index=False, encoding="utf-8")
+                        st.success(f"✅ บันทึกข้อมูลลงในไฟล์หลักและ `{daily_filename}` เรียบร้อยแล้ว!")
+                    except Exception:
+                        st.success(f"✅ บันทึกข้อมูลลงไฟล์หลักเรียบร้อยแล้ว!")
+                    
+                    st.rerun()
+                else:
+                    st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
+
+    with tab2:
+        st.markdown("#### 🛠️ บันทึกข้อมูลเจาะจงวันในสัปดาห์ (Monday - Friday)")
+        with st.form("update_specific_day_form"):
+            selected_day_target = st.selectbox(
+                "เลือกวันที่ต้องการอัปเดตข้อมูล:",
+                ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+            )
+            spec_date = st.text_input("ใส่วันที่ของงวดนี้ (DD/MM/YYYY):", key="spec_date")
+            spec_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):", key="spec_6d")
+            submitted_spec = st.form_submit_button(f"บันทึกข้อมูล {selected_day_target}")
+            
+            if submitted_spec:
+                if len(spec_6d) >= 6 and spec_6d.isdigit():
+                    val_6d = spec_6d[:6]
+                    val_4d = spec_6d[-4:]
+                    val_3d = spec_6d[-3:]
+                    val_2d = spec_6d[-2:]
+                    
+                    new_row_spec = pd.DataFrame([{
+                        "date": spec_date,
+                        "special": val_6d,
+                        "first_prize": val_4d,
+                        "top_3": val_3d,
+                        "bottom_2": val_2d
+                    }])
+                    
+                    # บันทึกลงไฟล์เฉพาะวันนั้นๆ โดยตรง (เช่น history_lao_mon.csv)
+                    day_code = DAY_MAP.get(selected_day_target, "mon")
+                    target_filename = f"history_lao_{day_code}.csv"
+                    
+                    target_exists = os.path.exists(target_filename)
+                    new_row_spec.to_csv(target_filename, mode="a", header=not target_exists, index=False, encoding="utf-8")
+                    
+                    # บันทึกลงไฟล์หลัก history_lao.csv ด้วยเพื่อให้ข้อมูลซิงค์กัน
+                    main_exists = os.path.exists(CSV_FILE_MAIN)
+                    new_row_spec.to_csv(CSV_FILE_MAIN, mode="a", header=not main_exists, index=False, encoding="utf-8")
+                    
+                    st.success(f"✅ บันทึกข้อมูลเข้าสู่ `{target_filename}` และไฟล์หลักเรียบร้อยแล้ว!")
+                    st.rerun()
+                else:
+                    st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
 
 elif menu == "2. แสดงประวัติ (History)":
     st.title("🧠 Lao AI Professional")
