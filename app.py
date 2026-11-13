@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (GitHub API Sync & Mon-Fri Separated)
+# app.py - Lao AI Professional v4.2 (Real-Time Mobile & Safari Cache Fix)
 import os
 import streamlit as st
 import pandas as pd
@@ -7,13 +7,14 @@ from collections import Counter
 from itertools import combinations
 import base64
 import requests
+import time
 from io import StringIO
 
 # ==========================================
 # 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
 # ==========================================
 st.set_page_config(
-    page_title="หวยลาวพัฒนา v4.1",
+    page_title="หวยลาวพัฒนา v4.2",
     page_icon="🧠",
     layout="centered"
 )
@@ -97,7 +98,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-VERSION = "4.1 GITHUB API SYNC ENGINE"
+VERSION = "4.2 REAL-TIME MOBILE & CACHE FIXED ENGINE"
 
 DAY_MAP = {
     "Monday": "mon",
@@ -116,7 +117,7 @@ DAILY_NUMBERS = {
 }
 
 # ==========================================
-# 2. GITHUB API & CSV FUNCTIONS
+# 2. GITHUB API & CSV FUNCTIONS (Cache Fix)
 # ==========================================
 def normalize_date_format(date_str):
     date_str = str(date_str).strip()
@@ -141,16 +142,19 @@ def parse_date_for_sort(date_str):
     return datetime(1900, 1, 1)
 
 def load_csv_data_from_github(filename):
-    """อ่าน CSV จาก GitHub API (พร้อม fallback มาอ่านในเครื่องถ้าดึง API ไม่ได้)"""
+    """อ่าน CSV จาก GitHub API พร้อมใส่ Cache Buster ป้องกันการติด Cache บน Safari มือถือ"""
     github_token = st.secrets.get("GITHUB_TOKEN")
     repo_name = st.secrets.get("GITHUB_REPO")
     
     if github_token and repo_name and filename:
         headers = {
             "Authorization": f"Bearer {github_token}",
-            "Accept": "application/vnd.github+json"
+            "Accept": "application/vnd.github+json",
+            "Cache-Control": "no-cache"
         }
-        file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}"
+        # เพิ่ม parameter สุ่มเวลา (?t=...) เพื่อบังคับไม่ให้ Safari หรือ GitHub CDN จำ Cache เก่า
+        timestamp = int(time.time() * 1000)
+        file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}?t={timestamp}"
         try:
             res = requests.get(file_url, headers=headers)
             if res.status_code == 200:
@@ -172,7 +176,7 @@ def load_csv_data_from_github(filename):
     return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
 def save_history_to_github(target_day_code, new_row_df):
-    """บันทึกและซิงก์ข้อมูล CSV ตรงขึ้น GitHub ผ่าน API พร้อมแสดงข้อความ Error ละเอียด"""
+    """บันทึกและซิงก์ข้อมูล CSV ตรงขึ้น GitHub ผ่าน API พร้อมหน่วงเวลาให้ Commit เสร็จสมบูรณ์"""
     filename = f"history_lao_{target_day_code}.csv"
     github_token = st.secrets.get("GITHUB_TOKEN")
     repo_name = st.secrets.get("GITHUB_REPO")
@@ -184,9 +188,14 @@ def save_history_to_github(target_day_code, new_row_df):
         
     headers = {
         "Authorization": f"Bearer {github_token}",
-        "Accept": "application/vnd.github+json"
+        "Accept": "application/vnd.github+json",
+        "Cache-Control": "no-cache"
     }
-    file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}"
+    
+    # ใช้ Cache Buster ตอนดึงไฟล์ล่าสุดเพื่อป้องกันความขัดแย้งของ SHA บนมือถือ
+    timestamp = int(time.time() * 1000)
+    file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}?t={timestamp}"
+    put_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}"
     
     # 1. ดึงไฟล์เดิมมาจาก GitHub เพื่อเอา SHA
     res = requests.get(file_url, headers=headers)
@@ -228,12 +237,13 @@ def save_history_to_github(target_day_code, new_row_df):
     if file_sha:
         payload["sha"] = file_sha
         
-    put_res = requests.put(file_url, headers=headers, json=payload)
+    put_res = requests.put(put_url, headers=headers, json=payload)
     
     if put_res.status_code in [200, 201]:
+        # หน่วงเวลา 1.5 วินาทีเพื่อให้ GitHub backend ทำการประมวลผล Commit เสร็จสมบูรณ์
+        time.sleep(1.5)
         return True
     else:
-        # พิมพ์ข้อความ Error ดิบๆ จาก GitHub ลงหน้าเว็บทันที
         st.error(f"❌ GitHub API Error ({put_res.status_code}): {put_res.text}")
         return False
 
@@ -363,7 +373,7 @@ def calculate_formula_frequency(formula_outputs, top_n=6):
 
 
 # ==========================================
-# 4. SIDEBAR NAVIGATION
+# 4. SIDEBAR NAVIGATION & MANUAL REFRESH
 # ==========================================
 st.sidebar.markdown("### เลือกเมนูการใช้งาน")
 menu = st.sidebar.selectbox(
@@ -376,6 +386,11 @@ menu = st.sidebar.selectbox(
     ],
     label_visibility="collapsed"
 )
+
+st.sidebar.markdown("---")
+if st.sidebar.button("🔄 รีเฟรชข้อมูลทั้งหมด", use_container_width=True, help="ล้างแคชและดึงข้อมูลใหม่จาก GitHub ทันที"):
+    st.cache_data.clear()
+    st.rerun()
 
 
 # ==========================================
@@ -414,12 +429,15 @@ if menu == "1. อัปเดตผลรางวัล":
                         st.error(f"❌ ไม่อนุญาตให้บันทึกข้อมูลของวัน {day_en} (ระบบรองรับเฉพาะวันจันทร์ - ศุกร์เท่านั้น)")
                     else:
                         day_code = DAY_MAP[day_en]
-                        success = save_history_to_github(day_code, new_row)
-                        if success:
-                            st.success(f"✅ บันทึกและซิงก์ข้อมูลลง GitHub (`history_lao_{day_code}.csv`) สำเร็จเรียบร้อยแล้ว!")
-                            st.rerun()
-                        else:
-                            st.error("❌ เกิดข้อผิดพลาดในการเชื่อมต่อกับ GitHub API กรุณาตรวจสอบ GITHUB_TOKEN และ Secrets อีกครั้ง")
+                        with st.spinner("กำลังบันทึกและซิงก์ข้อมูลลง GitHub..."):
+                            success = save_history_to_github(day_code, new_row)
+                            if success:
+                                st.cache_data.clear()
+                                st.success(f"✅ บันทึกและซิงก์ข้อมูลลง GitHub (`history_lao_{day_code}.csv`) สำเร็จเรียบร้อยแล้ว!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("❌ เกิดข้อผิดพลาดในการเชื่อมต่อกับ GitHub API กรุณาตรวจสอบ GITHUB_TOKEN และ Secrets อีกครั้ง")
                 except Exception as e:
                     st.error(f"เกิดข้อผิดพลาดในการตรวจสอบวันที่: {e}")
             else:
