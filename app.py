@@ -155,20 +155,23 @@ def load_csv_data_from_github(filename):
         file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}?t={timestamp}"
         try:
             res = requests.get(file_url, headers=headers)
+            
+            # บรรทัดนี้ช่วยเช็คว่า API ตอบกลับมาว่าอะไร (สามารถลบออกได้หลังเช็คเสร็จ)
+            if res.status_code != 200:
+                st.sidebar.error(f"API Error {res.status_code} สำหรับ {filename}: {res.text}")
+                
             if res.status_code == 200:
                 file_data = res.json()
                 content_decoded = base64.b64decode(file_data["content"]).decode("utf-8")
                 df = pd.read_csv(StringIO(content_decoded), dtype=str, keep_default_na=False)
                 df.columns = df.columns.str.strip()
                 return df
-        except Exception:
+        except Exception as e:
+            st.sidebar.error(f"Exception: {e}")
             pass
             
     if os.path.exists(filename):
-        try:
-            return pd.read_csv(filename, dtype=str, keep_default_na=False)
-        except Exception:
-            pass
+        return pd.read_csv(filename, dtype=str, keep_default_na=False)
             
     return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
