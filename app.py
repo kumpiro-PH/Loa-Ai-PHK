@@ -413,9 +413,15 @@ if menu == "1. อัปเดตผลรางวัล":
                     "bottom_2": val_2d
                 }])
                 
-                try:
-                    dt_obj = datetime.strptime(input_date.strip(), "%d/%m/%Y")
-                    day_en = dt_obj.strftime("%A")
+
+        dt_obj = datetime.strptime(input_date.strip(), "%d/%m/%Y")
+        
+        # Convert Buddhist Era (พ.ศ.) to Gregorian (ค.ศ.)
+        if dt_obj.year >= 2400:
+            dt_obj = dt_obj.replace(year=dt_obj.year - 543)
+        
+        day_en = dt_obj.strftime("%A")
+
                     
                     if day_en not in DAY_MAP:
                         st.error(f"❌ ไม่อนุญาตให้บันทึกข้อมูลของวัน {day_en} (ระบบรองรับเฉพาะวันจันทร์ - ศุกร์เท่านั้น)")
