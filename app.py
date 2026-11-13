@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.2 (Real-Time Mobile & Safari Cache Fix)
+# app.py - Lao AI Professional v4.2 (Fixed Original Formulas & Safari Cache Fix)
 import os
 import streamlit as st
 import pandas as pd
@@ -98,7 +98,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-VERSION = "4.2 REAL-TIME MOBILE & CACHE FIXED ENGINE"
+VERSION = "4.2 ORIGINAL FORMULAS & MOBILE SYNC"
 
 DAY_MAP = {
     "Monday": "mon",
@@ -124,7 +124,7 @@ def normalize_date_format(date_str):
     parts = date_str.split('/')
     if len(parts) == 3:
         d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
-        if y < 2400: # แปลง ค.ศ. เป็น พ.ศ. เสมอเพื่อความเสถียร
+        if y < 2400:
             y += 543
         return f"{d:02d}/{m:02d}/{y}"
     return date_str
@@ -134,7 +134,7 @@ def parse_date_for_sort(date_str):
         parts = str(date_str).strip().split('/')
         if len(parts) == 3:
             d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
-            if y > 2400: # แปลง พ.ศ. เป็น ค.ศ. ชั่วคราวเพื่อให้ datetime เปรียบเทียบได้ถูกต้อง
+            if y > 2400:
                 y -= 543
             return datetime(y, m, d)
     except Exception:
@@ -142,7 +142,6 @@ def parse_date_for_sort(date_str):
     return datetime(1900, 1, 1)
 
 def load_csv_data_from_github(filename):
-    """อ่าน CSV จาก GitHub API พร้อมใส่ Cache Buster ป้องกันการติด Cache บน Safari มือถือ"""
     github_token = st.secrets.get("GITHUB_TOKEN")
     repo_name = st.secrets.get("GITHUB_REPO")
     
@@ -152,7 +151,6 @@ def load_csv_data_from_github(filename):
             "Accept": "application/vnd.github+json",
             "Cache-Control": "no-cache"
         }
-        # เพิ่ม parameter สุ่มเวลา (?t=...) เพื่อบังคับไม่ให้ Safari หรือ GitHub CDN จำ Cache เก่า
         timestamp = int(time.time() * 1000)
         file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}?t={timestamp}"
         try:
@@ -166,7 +164,6 @@ def load_csv_data_from_github(filename):
         except Exception:
             pass
             
-    # Fallback อ่านในเครื่อง
     if os.path.exists(filename):
         try:
             return pd.read_csv(filename, dtype=str, keep_default_na=False)
@@ -176,7 +173,6 @@ def load_csv_data_from_github(filename):
     return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
 def save_history_to_github(target_day_code, new_row_df):
-    """บันทึกและซิงก์ข้อมูล CSV ตรงขึ้น GitHub ผ่าน API พร้อมหน่วงเวลาให้ Commit เสร็จสมบูรณ์"""
     filename = f"history_lao_{target_day_code}.csv"
     github_token = st.secrets.get("GITHUB_TOKEN")
     repo_name = st.secrets.get("GITHUB_REPO")
@@ -192,12 +188,10 @@ def save_history_to_github(target_day_code, new_row_df):
         "Cache-Control": "no-cache"
     }
     
-    # ใช้ Cache Buster ตอนดึงไฟล์ล่าสุดเพื่อป้องกันความขัดแย้งของ SHA บนมือถือ
     timestamp = int(time.time() * 1000)
     file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}?t={timestamp}"
     put_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}"
     
-    # 1. ดึงไฟล์เดิมมาจาก GitHub เพื่อเอา SHA
     res = requests.get(file_url, headers=headers)
     file_sha = None
     existing_df = pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
@@ -211,24 +205,20 @@ def save_history_to_github(target_day_code, new_row_df):
     elif res.status_code != 404:
         st.warning(f"⚠️ สถานะการดึงไฟล์เดิม (Status {res.status_code}): {res.text}")
         
-    # 2. รวมข้อมูลใหม่กับข้อมูลเดิม
     new_date = new_row_df.iloc[0]["date"]
     if not existing_df.empty and "date" in existing_df.columns:
         existing_df = existing_df[existing_df["date"] != new_date]
         
     updated_df = pd.concat([new_row_df, existing_df], ignore_index=True)
     
-    # 3. จัดเรียงวันที่จากใหม่ไปเก่า
     if "date" in updated_df.columns:
         updated_df["_temp_date"] = updated_df["date"].apply(parse_date_for_sort)
         updated_df = updated_df.sort_values(by="_temp_date", ascending=False, na_position="last")
         updated_df = updated_df.drop(columns=["_temp_date"])
         
-    # 4. แปลงเป็น CSV และ Base64
     csv_string = updated_df.to_csv(index=False, encoding="utf-8")
     encoded_content = base64.b64encode(csv_string.encode("utf-8")).decode("utf-8")
     
-    # 5. ส่งคำขอ PUT ไปที่ GitHub API
     payload = {
         "message": f"Update {filename} for {new_date} via Streamlit App",
         "content": encoded_content,
@@ -240,7 +230,6 @@ def save_history_to_github(target_day_code, new_row_df):
     put_res = requests.put(put_url, headers=headers, json=payload)
     
     if put_res.status_code in [200, 201]:
-        # หน่วงเวลา 1.5 วินาทีเพื่อให้ GitHub backend ทำการประมวลผล Commit เสร็จสมบูรณ์
         time.sleep(1.5)
         return True
     else:
@@ -267,7 +256,7 @@ def load_weekday_history():
 
 
 # ==========================================
-# 3. FORMULA ENGINE (1-15)
+# 3. ORIGINAL FORMULA ENGINE (1-15 ครบถ้วนตามที่คุณให้มา)
 # ==========================================
 def formula5(number):
     digits = [int(x) for x in number]
