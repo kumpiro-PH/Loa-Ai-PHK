@@ -450,16 +450,13 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
 
         digit_scores = {str(i): 0.0 for i in range(10)}
 
-        # แหล่งที่ 1: Daily Number (+2.0 ต่อการปรากฏของแต่ละหลัก)
         for digit in daily_6:
             digit_scores[digit] += 2.0
 
-        # แหล่งที่ 2: ความถี่จากผลสูตรที่คำนวณด้วยฐานรวม
         counter_all, _ = calculate_formula_frequency(outputs_all, top_n=10)
         for digit, count in counter_all.items():
             digit_scores[digit] += float(count) * 0.3
 
-        # แหล่งที่ 3: ความถี่จากผลสูตรที่คำนวณด้วยฐานเฉพาะวัน
         counter_day, _ = calculate_formula_frequency(outputs_day, top_n=10)
         for digit, count in counter_day.items():
             digit_scores[digit] += float(count) * 0.3
