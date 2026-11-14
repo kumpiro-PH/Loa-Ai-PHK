@@ -109,9 +109,9 @@ DAY_MAP = {
 
 DAILY_NUMBERS = {
     "Monday": "370852",
-    "Tuesday": "017562",
-    "Wednesday": "394517",
-    "Thursday": "643951",
+    "Tuesday": "764352",
+    "Wednesday": "380275",
+    "Thursday": "906725",
     "Friday": "974516",
     "Saturday": "820739",
     "Sunday": "470076",
