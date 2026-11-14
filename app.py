@@ -519,6 +519,16 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
 
         st.markdown(f"### 📊 ผลลัพธ์เลขเด่นผสาน 3 ส่วน ({day_selected})")
 
+        if top_digits_merged:
+            html_parts = ['<div class="grid-container">']
+            for number, score in top_digits_merged:
+                html_parts.append(
+                    f'<div class="stat-card"><div class="stat-num">{number}</div>'
+                    f'<div class="stat-count">{score:.1f} แต้ม</div></div>'
+                )
+            html_parts.append('</div>')
+            st.markdown("".join(html_parts), unsafe_allow_html=True)
+
         # สรุปผลในรูปแบบรายการตามที่ผู้ใช้ต้องการ
         # เลขเด่น = อันดับคะแนน Fusion 1-3
         # เลขรอง = อันดับคะแนน Fusion 4-6
@@ -535,7 +545,7 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
                 if value.isdigit() and len(value) >= 6:
                     valid_history.append(value[:6])
 
-            for value in valid_history[-30:]:
+            for value in valid_history[:30]:
                 history_digits.update(value)
 
         max_frequency = max(history_digits.values(), default=0)
@@ -560,16 +570,6 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
             )
         else:
             st.markdown("- **เลขที่พบมากที่สุด:** ไม่มีข้อมูลประวัติสำหรับคำนวณ")
-
-        if top_digits_merged:
-            html_parts = ['<div class="grid-container">']
-            for number, score in top_digits_merged:
-                html_parts.append(
-                    f'<div class="stat-card"><div class="stat-num">{number}</div>'
-                    f'<div class="stat-count">{score:.1f} แต้ม</div></div>'
-                )
-            html_parts.append('</div>')
-            st.markdown("".join(html_parts), unsafe_allow_html=True)
 
         st.markdown("### 📈 คะแนนแยกตามแหล่งข้อมูล")
         score_rows = []
