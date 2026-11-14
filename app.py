@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (Full Complete Code with Corrected Latest Row Retrieval)
+# app.py - Lao AI Professional v4.2 (Full Complete Code with Corrected Latest Row Retrieval)
 import os
 import streamlit as st
 import pandas as pd
@@ -10,7 +10,7 @@ from itertools import combinations
 # 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
 # ==========================================
 st.set_page_config(
-    page_title="Lao AI Professional v4.1",
+    page_title="Lao AI Professional v4.2",
     page_icon="🧠",
     layout="centered"
 )
@@ -530,13 +530,9 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
             st.markdown("".join(html_parts), unsafe_allow_html=True)
 
         # สรุปผลในรูปแบบรายการตามที่ผู้ใช้ต้องการ
-        # เลขเด่น = อันดับคะแนน Fusion 1-3
-        # เลขรอง = อันดับคะแนน Fusion 4-6
         highlight_digits = sorted_digits[:3]
         secondary_digits = sorted_digits[3:6]
 
-        # เลขที่พบมากที่สุดคำนวณจากประวัติเลขฐาน 6 หลักของวันที่เลือก
-        # ใช้ 30 งวดล่าสุดที่มีข้อมูลถูกต้อง ไม่ใช่จำนวนครั้งจากผลสูตร
         history_digits = Counter()
         if df_day_specific is not None and not df_day_specific.empty and "special" in df_day_specific.columns:
             valid_history = []
