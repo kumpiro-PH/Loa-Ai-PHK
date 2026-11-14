@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.2 (Full Complete Code with Corrected Latest Row Retrieval)
+# app.py - Lao AI Professional v4.2 (Full Complete Code)
 import os
 import streamlit as st
 import pandas as pd
@@ -25,40 +25,6 @@ st.markdown("""
 
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    
-    .grid-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-        gap: 10px;
-        margin-top: 15px;
-        margin-bottom: 15px;
-    }
-    
-    .stat-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
-        border: 1px solid #bae6fd;
-        border-top: 4px solid #0284c7;
-        border-radius: 12px;
-        padding: 12px 6px;
-        text-align: center;
-        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.08);
-    }
-    .stat-num {
-        font-size: 26px;
-        font-weight: 800;
-        color: #0c4a6e;
-        line-height: 1.2;
-    }
-    .stat-count {
-        font-size: 12px;
-        font-weight: 600;
-        color: #0369a1;
-        background-color: #e0f2fe;
-        padding: 2px 8px;
-        border-radius: 12px;
-        display: inline-block;
-        margin-top: 6px;
-    }
 
     .pair-box {
         background-color: #f0f9ff;
@@ -332,7 +298,6 @@ if menu == "1. อัปเดตผลรางวัล":
                 # 2. บันทึกลงไฟล์แยกรายวันอัตโนมัติจากวันที่กรอก
                 try:
                     dt_obj = datetime.strptime(input_date.strip(), "%d/%m/%Y")
-                    # รองรับวันที่ พ.ศ. เช่น 14/11/2569 โดยแปลงเป็น ค.ศ. ก่อนหาวัน
                     if dt_obj.year > 2400:
                         dt_obj = dt_obj.replace(year=dt_obj.year - 543)
                     day_en = dt_obj.strftime("%A")
@@ -399,20 +364,14 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🔮 Forward Prediction (เลือกวันเอง | 3-Way Fusion)")
 
-    # ผู้ใช้เลือกวันวิเคราะห์เองตามต้องการ (Mon-Fri)
     day_selected = st.selectbox(
         "เลือกวันของงวดถัดไป / วันที่ต้องการวิเคราะห์",
         ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
     )
 
-    # แหล่งที่ 1: ฐานข้อมูลรวม Mon-Fri เท่านั้น
     latest_all = get_latest_valid_base(df_history)
-
-    # แหล่งที่ 2: ฐานข้อมูลเฉพาะวันที่เลือกเท่านั้น
     df_day_specific = load_specific_day_history(day_selected)
     latest_day = get_latest_valid_base(df_day_specific)
-
-    # แหล่งที่ 3: Daily Number ของวันที่เลือก
     daily_6 = DAILY_NUMBERS.get(day_selected)
 
     col_a, col_b = st.columns(2)
@@ -461,7 +420,6 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
         "🚀 ประมวลผลทำนายเลข (ผสาน 3 ส่วน)",
         type="primary", use_container_width=True, disabled=not can_predict
     ):
-        # คำนวณสูตรเดิมทั้ง 15 สูตรจากฐานรวมและฐานเฉพาะวันแยกกัน
         outputs_all = {}
         outputs_day = {}
 
@@ -480,7 +438,6 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
             except Exception:
                 pass
 
-        # แสดงผลสูตรแยกแหล่งข้อมูลเพื่อให้ตรวจสอบย้อนกลับได้
         with st.expander("ดูผลลัพธ์ของสูตรทั้ง 15 สูตร แยกตามฐานข้อมูล"):
             formula_rows = []
             for name, _func in formulas:
@@ -507,7 +464,6 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
         for digit, count in counter_day.items():
             digit_scores[digit] += float(count) * 0.3
 
-        # เรียงคะแนนแบบ deterministic: คะแนนมากก่อน และเลขน้อยก่อนเมื่อคะแนนเท่ากัน
         sorted_digits = sorted(
             digit_scores.keys(),
             key=lambda digit: (-digit_scores[digit], int(digit))
@@ -517,19 +473,9 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
         ]
         digits_only = [item[0] for item in top_digits_merged]
 
-        st.markdown(f"### 📊 ผลลัพธ์เลขเด่นผสาน 3 ส่วน ({day_selected})")
+        # แสดงผลข้อความ 3 บรรทัดโดยตรงใต้หัวข้อ
+        st.markdown(f"### 📊 ผลลัพธ์เลขเด่นผสาน ({day_selected})")
 
-        if top_digits_merged:
-            html_parts = ['<div class="grid-container">']
-            for number, score in top_digits_merged:
-                html_parts.append(
-                    f'<div class="stat-card"><div class="stat-num">{number}</div>'
-                    f'<div class="stat-count">{score:.1f} แต้ม</div></div>'
-                )
-            html_parts.append('</div>')
-            st.markdown("".join(html_parts), unsafe_allow_html=True)
-
-        # สรุปผลในรูปแบบรายการตามที่ผู้ใช้ต้องการ
         highlight_digits = sorted_digits[:3]
         secondary_digits = sorted_digits[3:6]
 
@@ -541,31 +487,23 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
                 if value.isdigit() and len(value) >= 6:
                     valid_history.append(value[:6])
 
-            for value in valid_history[:30]:
+            for value in valid_history[-30:]:
                 history_digits.update(value)
 
         max_frequency = max(history_digits.values(), default=0)
         most_frequent_digits = sorted(
-            [
-                digit for digit, count in history_digits.items()
-                if count == max_frequency
-            ],
+            [digit for digit, count in history_digits.items() if count == max_frequency],
             key=int
         )
 
-        st.markdown(
-            f"- **เลขเด่น:** {' – '.join(highlight_digits) if highlight_digits else 'ไม่มีข้อมูล'}"
-        )
-        st.markdown(
-            f"- **เลขรอง:** {' – '.join(secondary_digits) if secondary_digits else 'ไม่มีข้อมูล'}"
-        )
-        if most_frequent_digits:
-            most_text = " / ".join(most_frequent_digits)
-            st.markdown(
-                f"- **เลขที่พบมากที่สุด:** {most_text} ({max_frequency} ครั้ง)"
-            )
-        else:
-            st.markdown("- **เลขที่พบมากที่สุด:** ไม่มีข้อมูลประวัติสำหรับคำนวณ")
+        most_text = " / ".join(most_frequent_digits) if most_frequent_digits else "ไม่มีข้อมูล"
+        freq_text = f" ({max_frequency} ครั้ง)" if most_frequent_digits else ""
+
+        st.markdown(f"""
+- **เลขเด่น:** {' – '.join(highlight_digits) if highlight_digits else 'ไม่มีข้อมูล'}
+- **เลขรอง:** {' – '.join(secondary_digits) if secondary_digits else 'ไม่มีข้อมูล'}
+- **เลขที่พบมากที่สุด:** {most_text}{freq_text}
+""")
 
         st.markdown("### 📈 คะแนนแยกตามแหล่งข้อมูล")
         score_rows = []
