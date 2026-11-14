@@ -94,7 +94,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-VERSION = "4.1 WEB 3-WAY FUSION"
+VERSION = "4.2 MANUAL DAY 3-WAY FUSION"
 CSV_FILE_MAIN = "history_lao.csv"
 
 DAY_MAP = {
@@ -160,6 +160,21 @@ def load_specific_day_history(day_en):
     day_code = DAY_MAP.get(day_en, "mon")
     filename = f"history_lao_{day_code}.csv"
     return load_csv_data(filename)
+
+def get_latest_valid_base(df):
+    """คืนเลขฐาน 6 หลักล่าสุดจากคอลัมน์ special โดยไม่ใช้ข้อมูลสำรองจากไฟล์อื่น"""
+    if df is None or df.empty:
+        return None
+
+    col_name = "special" if "special" in df.columns else None
+    if col_name is None:
+        return None
+
+    for raw_val in reversed(df[col_name].tolist()):
+        value = str(raw_val).strip()
+        if value.isdigit() and len(value) >= 6:
+            return value[:6]
+    return None
 
 def formula5(number):
     digits = [int(x) for x in number]
@@ -281,14 +296,7 @@ menu = st.sidebar.selectbox(
 
 df_history = load_csv_data(CSV_FILE_MAIN)
 
-latest_base = "691489"
-if df_history is not None and not df_history.empty:
-    col_name = "special" if "special" in df_history.columns else df_history.columns[0]
-    for raw_val in reversed(df_history[col_name].tolist()):
-        v_str = str(raw_val).strip()
-        if v_str.isdigit() and len(v_str) >= 6:
-            latest_base = v_str[:6]
-            break
+latest_base = get_latest_valid_base(df_history)
 
 # ==========================================
 # 4. MAIN CONTENT
@@ -324,8 +332,13 @@ if menu == "1. อัปเดตผลรางวัล":
                 # 2. บันทึกลงไฟล์แยกรายวันอัตโนมัติจากวันที่กรอก
                 try:
                     dt_obj = datetime.strptime(input_date.strip(), "%d/%m/%Y")
+                    # รองรับวันที่ พ.ศ. เช่น 14/11/2569 โดยแปลงเป็น ค.ศ. ก่อนหาวัน
+                    if dt_obj.year > 2400:
+                        dt_obj = dt_obj.replace(year=dt_obj.year - 543)
                     day_en = dt_obj.strftime("%A")
-                    day_code = DAY_MAP.get(day_en, "mon")
+                    day_code = DAY_MAP.get(day_en)
+                    if day_code is None:
+                        raise ValueError("วันที่ไม่อยู่ในช่วงวันจันทร์-อาทิตย์")
                     daily_filename = f"history_lao_{day_code}.csv"
                     
                     daily_exists = os.path.exists(daily_filename)
@@ -384,93 +397,148 @@ elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
 
 elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 🔮 Forward Prediction (คำนวณผสานสถิติ 3 แหล่งข้อมูล)")
-    
+    st.markdown("### 🔮 Forward Prediction (เลือกวันเอง | 3-Way Fusion)")
+
+    # ผู้ใช้เลือกวันวิเคราะห์เองตามต้องการ (Mon-Fri)
     day_selected = st.selectbox(
         "เลือกวันของงวดถัดไป / วันที่ต้องการวิเคราะห์",
-        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
     )
 
-    # ดึงข้อมืองวดรวมล่าสุดจากแถวล่างสุด
-    latest_all = latest_base
-    if df_history is not None and not df_history.empty:
-        col_name = "special" if "special" in df_history.columns else df_history.columns[0]
-        for raw_val in reversed(df_history[col_name].tolist()):
-            v_str = str(raw_val).strip()
-            if v_str.isdigit() and len(v_str) >= 6:
-                latest_all = v_str[:6]
-                break
+    # แหล่งที่ 1: ฐานข้อมูลรวม Mon-Fri เท่านั้น
+    latest_all = get_latest_valid_base(df_history)
 
-    # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน
+    # แหล่งที่ 2: ฐานข้อมูลเฉพาะวันที่เลือกเท่านั้น
     df_day_specific = load_specific_day_history(day_selected)
-    latest_day = latest_all
-    if df_day_specific is not None and not df_day_specific.empty:
-        col_day = "special" if "special" in df_day_specific.columns else df_day_specific.columns[0]
-        for raw_val in reversed(df_day_specific[col_day].tolist()):
-            v_str = str(raw_val).strip()
-            if v_str.isdigit() and len(v_str) >= 6:
-                latest_day = v_str[:6]
-                break
+    latest_day = get_latest_valid_base(df_day_specific)
+
+    # แหล่งที่ 3: Daily Number ของวันที่เลือก
+    daily_6 = DAILY_NUMBERS.get(day_selected)
 
     col_a, col_b = st.columns(2)
     with col_a:
-        st.info(f"📊 **งวดรวมล่าสุด (`history_lao.csv`)**\n\nเลขฐาน 6 หลัก: `{latest_all}`\n\n3 ตัว/4 ตัว: `{latest_all[-3:]}` / `{latest_all[-4:]}`")
+        if latest_all:
+            st.info(
+                f"📊 **งวดรวม Mon-Fri ล่าสุด (`{CSV_FILE_MAIN}`)**\n\n"
+                f"เลขฐาน 6 หลัก: `{latest_all}`\n\n"
+                f"3 ตัว/4 ตัว: `{latest_all[-3:]}` / `{latest_all[-4:]}`"
+            )
+        else:
+            st.warning("ไม่พบเลขฐานที่ถูกต้องใน history_lao.csv")
+
     with col_b:
-        st.success(f"📌 **งวดประจำวัน {day_selected} ล่าสุด**\n\nเลขฐาน 6 หลัก: `{latest_day}`\n\n3 ตัว/4 ตัว: `{latest_day[-3:]}` / `{latest_day[-4:]}`")
+        daily_filename = f"history_lao_{DAY_MAP[day_selected]}.csv"
+        if latest_day:
+            st.success(
+                f"📌 **งวดประจำวัน {day_selected} ล่าสุด (`{daily_filename}`)**\n\n"
+                f"เลขฐาน 6 หลัก: `{latest_day}`\n\n"
+                f"3 ตัว/4 ตัว: `{latest_day[-3:]}` / `{latest_day[-4:]}`"
+            )
+        else:
+            st.warning(
+                f"ไม่พบเลขฐานใน `{daily_filename}`\n\n"
+                "ระบบจะไม่ใช้เลขจากฐานรวมมาแทนฐานข้อมูลรายวัน"
+            )
 
-    daily_6 = DAILY_NUMBERS.get(day_selected, "000000")
-    st.write(f"🎯 **ชุดเลขประจำวัน ({day_selected}):** `{daily_6}`")
+    if daily_6:
+        st.write(f"🎯 **ชุดเลขประจำวัน ({day_selected}):** `{daily_6}`")
+    else:
+        st.error(f"ไม่พบ Daily Number สำหรับ {day_selected}")
 
-    display_count = st.radio("เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:", [5, 6], index=1, horizontal=True)
+    display_count = st.radio(
+        "เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:",
+        [5, 6], index=1, horizontal=True
+    )
 
-    if st.button("🚀 ประมวลผลทำนายเลข (ผสาน 3 ส่วน)", type="primary", use_container_width=True):
-        if day_selected == "Saturday":
-            st.warning("⚠️ [AI WARNING] วันเสาร์มีสถิติการออกเลขเบิ้ลหรือหามสูง แนะนำให้ระวังเป็นพิเศษ!")
+    can_predict = bool(latest_all and latest_day and daily_6)
+    if not can_predict:
+        st.info(
+            "กรุณาตรวจสอบให้มีเลขฐาน 6 หลักในทั้งฐานข้อมูลรวมและฐานข้อมูลวันที่เลือก "
+            "ก่อนประมวลผลการทำนาย"
+        )
 
+    if st.button(
+        "🚀 ประมวลผลทำนายเลข (ผสาน 3 ส่วน)",
+        type="primary", use_container_width=True, disabled=not can_predict
+    ):
+        # คำนวณสูตรเดิมทั้ง 15 สูตรจากฐานรวมและฐานเฉพาะวันแยกกัน
         outputs_all = {}
         outputs_day = {}
-        
+
         for name, func in formulas:
             try:
-                res_a = str(func(latest_all)).strip()
-                if res_a.isdigit():
-                    outputs_all[name] = res_a.zfill(4)[-4:]
-                res_d = str(func(latest_day)).strip()
-                if res_d.isdigit():
-                    outputs_day[name] = res_d.zfill(4)[-4:]
+                res_all = str(func(latest_all)).strip()
+                if res_all.isdigit():
+                    outputs_all[name] = res_all.zfill(4)[-4:]
             except Exception:
                 pass
 
+            try:
+                res_day = str(func(latest_day)).strip()
+                if res_day.isdigit():
+                    outputs_day[name] = res_day.zfill(4)[-4:]
+            except Exception:
+                pass
+
+        # แสดงผลสูตรแยกแหล่งข้อมูลเพื่อให้ตรวจสอบย้อนกลับได้
+        with st.expander("ดูผลลัพธ์ของสูตรทั้ง 15 สูตร แยกตามฐานข้อมูล"):
+            formula_rows = []
+            for name, _func in formulas:
+                formula_rows.append({
+                    "สูตร": name,
+                    "ฐานรวม Mon-Fri": outputs_all.get(name, "คำนวณไม่ได้"),
+                    f"ฐาน {day_selected}": outputs_day.get(name, "คำนวณไม่ได้")
+                })
+            st.dataframe(pd.DataFrame(formula_rows), use_container_width=True, hide_index=True)
+
         digit_scores = {str(i): 0.0 for i in range(10)}
 
-        # 1. เลขประจำวันให้โบนัสสูงสุด (+2.0 แต้ม)
-        for d in daily_6:
-            digit_scores[d] += 2.0
+        # แหล่งที่ 1: Daily Number (+2.0 ต่อการปรากฏของแต่ละหลัก)
+        for digit in daily_6:
+            digit_scores[digit] += 2.0
 
-        # 2. คะแนนจากสูตรของงวดรวมล่าสุด
+        # แหล่งที่ 2: ความถี่จากผลสูตรที่คำนวณด้วยฐานรวม
         counter_all, _ = calculate_formula_frequency(outputs_all, top_n=10)
-        for num_str, count in counter_all.items():
-            for d in num_str:
-                digit_scores[d] += float(count) * 0.3
+        for digit, count in counter_all.items():
+            digit_scores[digit] += float(count) * 0.3
 
-        # 3. คะแนนจากสูตรของงวดรายวันล่าสุด
+        # แหล่งที่ 3: ความถี่จากผลสูตรที่คำนวณด้วยฐานเฉพาะวัน
         counter_day, _ = calculate_formula_frequency(outputs_day, top_n=10)
-        for num_str, count in counter_day.items():
-            for d in num_str:
-                digit_scores[d] += float(count) * 0.3
+        for digit, count in counter_day.items():
+            digit_scores[digit] += float(count) * 0.3
 
-        sorted_digits = sorted(digit_scores.keys(), key=lambda k: digit_scores[k], reverse=True)
-        top_digits_merged = [(d, digit_scores[d]) for d in sorted_digits[:display_count]]
+        # เรียงคะแนนแบบ deterministic: คะแนนมากก่อน และเลขน้อยก่อนเมื่อคะแนนเท่ากัน
+        sorted_digits = sorted(
+            digit_scores.keys(),
+            key=lambda digit: (-digit_scores[digit], int(digit))
+        )
+        top_digits_merged = [
+            (digit, digit_scores[digit]) for digit in sorted_digits[:display_count]
+        ]
         digits_only = [item[0] for item in top_digits_merged]
 
         st.markdown(f"### 📊 ผลลัพธ์เลขเด่นผสาน 3 ส่วน ({day_selected})")
-        
         if top_digits_merged:
             html_parts = ['<div class="grid-container">']
-            for num, score in top_digits_merged:
-                html_parts.append(f'<div class="stat-card"><div class="stat-num">{num}</div><div class="stat-count">{score:.1f} แต้ม</div></div>')
+            for number, score in top_digits_merged:
+                html_parts.append(
+                    f'<div class="stat-card"><div class="stat-num">{number}</div>'
+                    f'<div class="stat-count">{score:.1f} แต้ม</div></div>'
+                )
             html_parts.append('</div>')
             st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+        st.markdown("### 📈 คะแนนแยกตามแหล่งข้อมูล")
+        score_rows = []
+        for digit in sorted(digit_scores, key=lambda d: (-digit_scores[d], int(d))):
+            score_rows.append({
+                "เลข": digit,
+                "Daily Number": round(sum(2.0 for d in daily_6 if d == digit), 1),
+                "สูตรฐานรวม": round(counter_all.get(digit, 0) * 0.3, 1),
+                f"สูตรฐาน {day_selected}": round(counter_day.get(digit, 0) * 0.3, 1),
+                "คะแนนรวม": round(digit_scores[digit], 1)
+            })
+        st.dataframe(pd.DataFrame(score_rows), use_container_width=True, hide_index=True)
 
         if len(digits_only) >= 3:
             st.markdown("---")
@@ -478,7 +546,6 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
 
             pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
             pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
-            
             top_3_straight = "".join(digits_only[:3])
             top_2_straight = "".join(digits_only[:2])
 
@@ -490,7 +557,7 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
             </div>
             """, unsafe_allow_html=True)
 
-            badges_2d = "".join([f'<span class="badge">{p}</span>' for p in pairs_2d])
+            badges_2d = "".join([f'<span class="badge">{pair}</span>' for pair in pairs_2d])
             st.markdown(f"""
             <div class="pair-box">
                 <div class="pair-title">🎲 ชุด 2 ตัวจับคู่วิน ({len(pairs_2d)} ชุด)</div>
@@ -498,7 +565,7 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
             </div>
             """, unsafe_allow_html=True)
 
-            badges_3d = "".join([f'<span class="badge">{p}</span>' for p in pairs_3d])
+            badges_3d = "".join([f'<span class="badge">{triple}</span>' for triple in pairs_3d])
             st.markdown(f"""
             <div class="pair-box">
                 <div class="pair-title">🎲 ชุด 3 ตัวจับคู่วิน ({len(pairs_3d)} ชุด)</div>
