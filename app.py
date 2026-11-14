@@ -518,6 +518,49 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
         digits_only = [item[0] for item in top_digits_merged]
 
         st.markdown(f"### 📊 ผลลัพธ์เลขเด่นผสาน 3 ส่วน ({day_selected})")
+
+        # สรุปผลในรูปแบบรายการตามที่ผู้ใช้ต้องการ
+        # เลขเด่น = อันดับคะแนน Fusion 1-3
+        # เลขรอง = อันดับคะแนน Fusion 4-6
+        highlight_digits = sorted_digits[:3]
+        secondary_digits = sorted_digits[3:6]
+
+        # เลขที่พบมากที่สุดคำนวณจากประวัติเลขฐาน 6 หลักของวันที่เลือก
+        # ใช้ 30 งวดล่าสุดที่มีข้อมูลถูกต้อง ไม่ใช่จำนวนครั้งจากผลสูตร
+        history_digits = Counter()
+        if df_day_specific is not None and not df_day_specific.empty and "special" in df_day_specific.columns:
+            valid_history = []
+            for raw_value in df_day_specific["special"].tolist():
+                value = str(raw_value).strip()
+                if value.isdigit() and len(value) >= 6:
+                    valid_history.append(value[:6])
+
+            for value in valid_history[-30:]:
+                history_digits.update(value)
+
+        max_frequency = max(history_digits.values(), default=0)
+        most_frequent_digits = sorted(
+            [
+                digit for digit, count in history_digits.items()
+                if count == max_frequency
+            ],
+            key=int
+        )
+
+        st.markdown(
+            f"- **เลขเด่น:** {' – '.join(highlight_digits) if highlight_digits else 'ไม่มีข้อมูล'}"
+        )
+        st.markdown(
+            f"- **เลขรอง:** {' – '.join(secondary_digits) if secondary_digits else 'ไม่มีข้อมูล'}"
+        )
+        if most_frequent_digits:
+            most_text = " / ".join(most_frequent_digits)
+            st.markdown(
+                f"- **เลขที่พบมากที่สุด:** {most_text} ({max_frequency} ครั้ง)"
+            )
+        else:
+            st.markdown("- **เลขที่พบมากที่สุด:** ไม่มีข้อมูลประวัติสำหรับคำนวณ")
+
         if top_digits_merged:
             html_parts = ['<div class="grid-container">']
             for number, score in top_digits_merged:
