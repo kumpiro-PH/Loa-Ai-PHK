@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (Fixed Monday / Daily History Reading)
+# app.py - Lao AI Professional v4.1 (Final CSV Structured Support)
 import os
 import streamlit as st
 import pandas as pd
@@ -121,29 +121,36 @@ DAILY_NUMBERS = {
 # 2. ฟังก์ชันจัดการ CSV และ สูตรคำนวณ (1-15)
 # ==========================================
 def load_csv_data(filename):
-    """อ่าน CSV และแปลงโครงสร้างคอลัมน์มาตรฐาน"""
+    """อ่าน CSV ที่มีหัวคอลัมน์ date,special,first_prize,top_3,bottom_2"""
     if os.path.exists(filename):
         try:
-            df = pd.read_csv(filename, header=None, dtype=str, keep_default_na=False)
-            df = df.dropna(how='all')
+            df = pd.read_csv(filename, dtype=str, keep_default_na=False)
+            df.columns = df.columns.str.strip()
             return df
         except Exception as exc:
             st.error(f"ไม่สามารถอ่านไฟล์ {filename}: {exc}")
             return pd.DataFrame()
-
-    return pd.DataFrame()
+    return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
 def load_specific_day_history(day_en):
-    """โหลดข้อมูลเฉพาะไฟล์ CSV ประจำวันนั้นๆ เช่น history_lao_mon.csv"""
-    day_code = DAY_MAP.get(day_en, "mon")
-    filename = f"history_lao_{day_code}.csv"
-    df = load_csv_data(filename)
+    """โหลดข้อมูลเฉพาะวันในสัปดาห์จากไฟล์หลักโดยการแปลงวันที่ DD/MM/YYYY เป็นชื่อวัน"""
+    df_main = load_csv_data(CSV_FILE_MAIN)
+    if df_main.empty or "date" not in df_main.columns:
+        return pd.DataFrame()
     
-    # หากไม่มีไฟล์รายวัน ให้ดึงจากไฟล์หลักแล้วกรองตามวันในสัปดาห์ (ถ้ามีคอลัมน์วันที่) หรือใช้ไฟล์หลักสำรอง
-    if df.empty and os.path.exists(CSV_FILE_MAIN):
-        df_main = load_csv_data(CSV_FILE_MAIN)
-        return df_main
-    return df
+    filtered_rows = []
+    for _, row in df_main.iterrows():
+        date_str = str(row["date"]).strip()
+        try:
+            dt_obj = datetime.strptime(date_str, "%d/%m/%Y")
+            if dt_obj.strftime("%A") == day_en:
+                filtered_rows.append(row)
+        except Exception:
+            pass
+            
+    if filtered_rows:
+        return pd.DataFrame(filtered_rows)
+    return pd.DataFrame(columns=df_main.columns)
 
 def formula5(number):
     digits = [int(x) for x in number]
@@ -265,14 +272,6 @@ menu = st.sidebar.selectbox(
 
 df_history = load_csv_data(CSV_FILE_MAIN)
 
-latest_base = "000000"
-if df_history is not None and not df_history.empty:
-    for raw_val in reversed(df_history[0].tolist()):
-        v_str = str(raw_val).strip()
-        if v_str.isdigit() and len(v_str) >= 6:
-            latest_base = v_str[:6]
-            break
-
 # ==========================================
 # 4. MAIN CONTENT
 # ==========================================
@@ -281,32 +280,28 @@ if menu == "1. อัปเดตผลรางวัล":
     st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่")
     
     with st.form("update_form"):
-        input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 16/11/2026)")
-        input_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):")
+        input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 16/11/2569)")
+        input_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก:")
         submitted = st.form_submit_button("บันทึกผลรางวัล")
         
         if submitted:
             if len(input_6d) >= 6 and input_6d.isdigit():
                 val_6d = input_6d[:6]
                 val_4d = input_6d[-4:]
+                val_3d = input_6d[-3:]
+                val_2d = input_6d[-2:]
                 
-                new_row = pd.DataFrame([[val_6d, val_4d]])
+                new_row = pd.DataFrame([{
+                    "date": input_date.strip(),
+                    "special": val_6d,
+                    "first_prize": val_4d,
+                    "top_3": val_3d,
+                    "bottom_2": val_2d
+                }])
                 
-                # 1. บันทึกลงไฟล์หลัก history_lao.csv
-                new_row.to_csv(CSV_FILE_MAIN, mode="a", header=False, index=False, encoding="utf-8")
-                
-                # 2. บันทึกลงไฟล์แยกรายวันอัตโนมัติจากวันที่กรอก
-                try:
-                    dt_obj = datetime.strptime(input_date.strip(), "%d/%m/%Y")
-                    day_en = dt_obj.strftime("%A")
-                    day_code = DAY_MAP.get(day_en, "mon")
-                    daily_filename = f"history_lao_{day_code}.csv"
-                    
-                    new_row.to_csv(daily_filename, mode="a", header=False, index=False, encoding="utf-8")
-                    st.success(f"✅ บันทึกข้อมูลลงในไฟล์หลักและ `{daily_filename}` เรียบร้อยแล้ว!")
-                except Exception:
-                    st.success("✅ บันทึกข้อมูลลงไฟล์หลักเรียบร้อยแล้ว!")
-                
+                main_exists = os.path.exists(CSV_FILE_MAIN)
+                new_row.to_csv(CSV_FILE_MAIN, mode="a", header=not main_exists, index=False, encoding="utf-8")
+                st.success(f"✅ บันทึกข้อมูลลงในไฟล์ `{CSV_FILE_MAIN}` เรียบร้อยแล้ว!")
                 st.rerun()
             else:
                 st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
@@ -323,11 +318,11 @@ elif menu == "3. ลบข้อมูลงวดล่าสุด":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🗑️ ลบข้อมูลงวดล่าสุดออกจากระบบ")
     if df_history is not None and not df_history.empty:
-        st.write("ข้อมูลแถวล่างสุดปัจจุบัน (งวดล่าสุดที่จะถูกลบ):")
-        st.write(df_history.tail(1))
+        st.write("ข้อมูลแถวบนสุดปัจจุบัน (งวดล่าสุดที่จะถูกลบ):")
+        st.write(df_history.head(1))
         if st.button("❌ ยืนยันลบข้อมูลงวดล่าสุด", type="primary"):
-            df_history = df_history.iloc[:-1].reset_index(drop=True)
-            df_history.to_csv(CSV_FILE_MAIN, header=False, index=False, encoding="utf-8")
+            df_history = df_history.iloc[1:].reset_index(drop=True)
+            df_history.to_csv(CSV_FILE_MAIN, index=False, encoding="utf-8")
             st.success("ลบข้อมูลงวดล่าสุดเรียบร้อยแล้ว!")
             st.rerun()
     else:
@@ -336,10 +331,10 @@ elif menu == "3. ลบข้อมูลงวดล่าสุด":
 elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🏆 Formula Ranking (จัดอันดับความแม่นยำ 15 สูตร)")
-    if df_history is not None and not df_history.empty:
+    if df_history is not None and not df_history.empty and "special" in df_history.columns:
         formula_scores = {name: 0 for name, _ in formulas}
-        for idx, row in df_history.iterrows():
-            v_str = str(row[0]).strip()
+        for _, row in df_history.iterrows():
+            v_str = str(row["special"]).strip()
             if v_str.isdigit() and len(v_str) >= 6:
                 for name, func in formulas:
                     try:
@@ -362,21 +357,21 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
         ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     )
 
-    # ดึงข้อมืองวดรวมล่าสุดจากแถวล่างสุด
-    latest_all = latest_base
-    if df_history is not None and not df_history.empty:
-        for raw_val in reversed(df_history[0].tolist()):
-            v_str = str(raw_val).strip()
+    # 1. ดึงงวดรวมล่าสุดจากแถวแรกสุดของไฟล์หลัก (เช่น 290900)
+    latest_all = "000000"
+    if df_history is not None and not df_history.empty and "special" in df_history.columns:
+        for val in df_history["special"].tolist():
+            v_str = str(val).strip()
             if v_str.isdigit() and len(v_str) >= 6:
                 latest_all = v_str[:6]
                 break
 
-    # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน (เช่น history_lao_mon.csv)
+    # 2. ดึงงวดประจำวันล่าสุดเฉพาะวันที่ตรงกับวันเลือก (เช่น วันจันทร์ล่าสุด = 337038)
     df_day_specific = load_specific_day_history(day_selected)
     latest_day = latest_all
-    if df_day_specific is not None and not df_day_specific.empty:
-        for raw_val in reversed(df_day_specific[0].tolist()):
-            v_str = str(raw_val).strip()
+    if df_day_specific is not None and not df_day_specific.empty and "special" in df_day_specific.columns:
+        for val in df_day_specific["special"].tolist():
+            v_str = str(val).strip()
             if v_str.isdigit() and len(v_str) >= 6:
                 latest_day = v_str[:6]
                 break
