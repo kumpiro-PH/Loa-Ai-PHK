@@ -1,5 +1,8 @@
 # app.py - Lao AI Professional v4.1 (Full Complete Code with Corrected Latest Row Retrieval)
 import os
+import base64
+import requests
+from io import StringIO
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -94,72 +97,179 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-VERSION = "4.1 WEB 3-WAY FUSION"
-CSV_FILE_MAIN = "history_lao.csv"
+VERSION = "4.2 GITHUB MON-FRI 3-WAY FUSION"
 
 DAY_MAP = {
-    "Monday": "mon",
-    "Tuesday": "tue",
-    "Wednesday": "wed",
-    "Thursday": "thu",
-    "Friday": "fri",
-    "Saturday": "sat",
-    "Sunday": "sun",
+    "Monday": "mon", "Tuesday": "tue", "Wednesday": "wed",
+    "Thursday": "thu", "Friday": "fri",
 }
-
+DAY_CSV_MAP = {day: f"history_lao_{code}.csv" for day, code in DAY_MAP.items()}
+ALLOWED_CSV_FILES = set(DAY_CSV_MAP.values())
+WEEKDAYS = list(DAY_MAP.keys())
 DAILY_NUMBERS = {
-    "Monday": "940627",
-    "Tuesday": "017562",
-    "Wednesday": "394517",
-    "Thursday": "643951",
-    "Friday": "974516",
-    "Saturday": "820739",
-    "Sunday": "470076",
+    "Monday": "940627", "Tuesday": "017562", "Wednesday": "394517",
+    "Thursday": "643951", "Friday": "974516",
 }
+EXPECTED_COLUMNS = ["date", "special", "first_prize", "top_3", "bottom_2"]
 
 # ==========================================
 # 2. ฟังก์ชันจัดการ CSV และ สูตรคำนวณ (1-15)
 # ==========================================
+def parse_draw_date(value):
+    """รองรับวันที่ DD/MM/YYYY ทั้ง พ.ศ. และ ค.ศ."""
+    try:
+        day, month, year = [int(part) for part in str(value).strip().split("/")[:3]]
+        if year > 2400:
+            year -= 543
+        elif year < 100:
+            year += 2000
+        return pd.Timestamp(year=year, month=month, day=day)
+    except Exception:
+        return pd.NaT
+
+
+def normalize_csv(df):
+    if df is None or df.empty:
+        return pd.DataFrame(columns=EXPECTED_COLUMNS)
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
+    mapping = {
+        "วันที่": "date", "date_be": "date",
+        "เลข 6 ตัว": "special", "รางวัลพิเศษ": "special",
+        "รางวัลที่ 1": "first_prize", "รางวัลที่1": "first_prize",
+        "3 ตัวบน": "top_3", "เลข 3 ตัวบน": "top_3",
+        "2 ตัวล่าง": "bottom_2", "เลข 2 ตัวล่าง": "bottom_2",
+    }
+    df = df.rename(columns=mapping)
+    if not any(col in df.columns for col in EXPECTED_COLUMNS) and len(df.columns) >= 5:
+        df = df.iloc[:, :5].copy()
+        df.columns = EXPECTED_COLUMNS
+    for col in EXPECTED_COLUMNS:
+        if col not in df.columns:
+            df[col] = "-"
+    df = df[EXPECTED_COLUMNS].fillna("").astype(str)
+    df["_sort_date"] = df["date"].apply(parse_draw_date)
+    df = df.sort_values("_sort_date", ascending=False, na_position="last")
+    return df.drop(columns=["_sort_date"]).reset_index(drop=True)
+
+
+def github_settings():
+    return (
+        st.secrets.get("GITHUB_TOKEN", ""),
+        st.secrets.get("GITHUB_REPO", ""),
+        st.secrets.get("GITHUB_BRANCH", "main"),
+    )
+
+
+def read_csv_text(raw_text):
+    """อ่าน CSV ได้ทั้งแบบมี header และไม่มี header"""
+    try:
+        frame = pd.read_csv(StringIO(raw_text), dtype=str, keep_default_na=False)
+        aliases = {
+            "date", "date_be", "วันที่", "special", "เลข 6 ตัว", "รางวัลพิเศษ",
+            "first_prize", "รางวัลที่ 1", "top_3", "3 ตัวบน", "เลข 3 ตัวบน",
+            "bottom_2", "2 ตัวล่าง", "เลข 2 ตัวล่าง",
+        }
+        if not any(str(column).strip() in aliases for column in frame.columns):
+            frame = pd.read_csv(
+                StringIO(raw_text),
+                header=None,
+                dtype=str,
+                keep_default_na=False,
+            )
+            if frame.shape[1] >= 5:
+                frame = frame.iloc[:, :5]
+                frame.columns = EXPECTED_COLUMNS
+        return normalize_csv(frame)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame(columns=EXPECTED_COLUMNS)
+
+
 def load_csv_data(filename):
-    """อ่าน CSV และแปลงโครงสร้างคอลัมน์มาตรฐาน date, special, first_prize, top_3, bottom_2"""
+    """โหลดเฉพาะ CSV วันจันทร์-ศุกร์จาก GitHub API พร้อม fallback local"""
+    if filename not in ALLOWED_CSV_FILES:
+        st.error(f"ไม่อนุญาตให้อ่านไฟล์: {filename}")
+        return pd.DataFrame(columns=EXPECTED_COLUMNS)
+
+    token, repo, branch = github_settings()
+    if token and repo:
+        url = f"https://api.github.com/repos/{repo}/contents/{filename}"
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+        try:
+            response = requests.get(url, headers=headers, params={"ref": branch}, timeout=15)
+            if response.status_code == 200:
+                raw = base64.b64decode(response.json()["content"]).decode("utf-8-sig")
+                return read_csv_text(raw)
+            if response.status_code != 404:
+                st.warning(f"GitHub อ่าน {filename} ไม่สำเร็จ: HTTP {response.status_code}")
+        except Exception as exc:
+            st.warning(f"เชื่อมต่อ GitHub เพื่ออ่าน {filename} ไม่สำเร็จ: {exc}")
+
     if os.path.exists(filename):
         try:
-            df = pd.read_csv(filename, dtype=str, keep_default_na=False)
-            df.columns = df.columns.str.strip()
-
-            if df.columns[0].isdigit() or len(df.columns) < 5:
-                df = pd.read_csv(
-                    filename,
-                    header=None,
-                    dtype=str,
-                    keep_default_na=False,
-                    names=["date", "special", "first_prize", "top_3", "bottom_2"]
-                )
-            else:
-                column_mapping = {
-                    "วันที่": "date",
-                    "เลข 6 ตัว": "special",
-                    "รางวัลพิเศษ": "special",
-                    "รางวัลที่ 1": "first_prize",
-                    "3 ตัวบน": "top_3",
-                    "เลข 3 ตัวบน": "top_3",
-                    "2 ตัวล่าง": "bottom_2",
-                    "เลข 2 ตัวล่าง": "bottom_2"
-                }
-                df = df.rename(columns=column_mapping)
-
-            return df
+            return read_csv_text(open(filename, "r", encoding="utf-8-sig").read())
         except Exception as exc:
             st.error(f"ไม่สามารถอ่านไฟล์ {filename}: {exc}")
-            return pd.DataFrame()
+    return pd.DataFrame(columns=EXPECTED_COLUMNS)
 
-    return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
+
+def save_csv_data(filename, dataframe, commit_message):
+    """บันทึก CSV รายวันขึ้น GitHub ผ่าน Contents API"""
+    if filename not in ALLOWED_CSV_FILES:
+        st.error(f"ไม่อนุญาตให้บันทึกไฟล์: {filename}")
+        return False
+    token, repo, branch = github_settings()
+    if not token or not repo:
+        st.error("กรุณาตั้งค่า GITHUB_TOKEN และ GITHUB_REPO ใน Streamlit Secrets")
+        return False
+    url = f"https://api.github.com/repos/{repo}/contents/{filename}"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+    try:
+        current = requests.get(url, headers=headers, params={"ref": branch}, timeout=15)
+        sha = current.json().get("sha") if current.status_code == 200 else None
+        csv_text = normalize_csv(dataframe).to_csv(index=False, encoding="utf-8-sig")
+        body = {
+            "message": commit_message,
+            "content": base64.b64encode(csv_text.encode("utf-8")).decode("ascii"),
+            "branch": branch,
+        }
+        if sha:
+            body["sha"] = sha
+        result = requests.put(url, headers=headers, json=body, timeout=20)
+        if result.status_code in (200, 201):
+            normalize_csv(dataframe).to_csv(filename, index=False, encoding="utf-8-sig")
+            return True
+        st.error(f"GitHub บันทึกไม่สำเร็จ: HTTP {result.status_code} - {result.text}")
+        return False
+    except Exception as exc:
+        st.error(f"เกิดข้อผิดพลาดขณะบันทึก GitHub: {exc}")
+        return False
+
 
 def load_specific_day_history(day_en):
-    """โหลดข้อมูลเฉพาะไฟล์ CSV ประจำวันนั้นๆ เช่น history_lao_thu.csv"""
-    day_code = DAY_MAP.get(day_en, "mon")
-    filename = f"history_lao_{day_code}.csv"
-    return load_csv_data(filename)
+    filename = DAY_CSV_MAP.get(day_en)
+    return load_csv_data(filename) if filename else pd.DataFrame(columns=EXPECTED_COLUMNS)
+
+
+def load_all_weekday_history():
+    """รวมประวัติจาก CSV ทั้ง 5 วันและเรียงตามวันที่"""
+    frames = [load_csv_data(filename) for filename in DAY_CSV_MAP.values()]
+    frames = [frame for frame in frames if not frame.empty]
+    if not frames:
+        return pd.DataFrame(columns=EXPECTED_COLUMNS)
+    return normalize_csv(pd.concat(frames, ignore_index=True))
+
+
+def get_latest_valid_base(dataframe):
+    """หาเลขฐาน 6 หลักจากคอลัมน์ special ของงวดวันที่ใหม่ที่สุด"""
+    if dataframe is None or dataframe.empty:
+        return None
+    for _, row in normalize_csv(dataframe).iterrows():
+        value = str(row.get("special", "")).strip()
+        if value.isdigit() and len(value) >= 6:
+            return value[:6]
+    return None
+
 
 def formula5(number):
     digits = [int(x) for x in number]
@@ -279,16 +389,9 @@ menu = st.sidebar.selectbox(
     label_visibility="collapsed"
 )
 
-df_history = load_csv_data(CSV_FILE_MAIN)
-
-latest_base = "691489"
-if df_history is not None and not df_history.empty:
-    col_name = "special" if "special" in df_history.columns else df_history.columns[0]
-    for raw_val in reversed(df_history[col_name].tolist()):
-        v_str = str(raw_val).strip()
-        if v_str.isdigit() and len(v_str) >= 6:
-            latest_base = v_str[:6]
-            break
+# รวมประวัติจาก CSV Monday-Friday เท่านั้น
+df_history = load_all_weekday_history()
+latest_base = get_latest_valid_base(df_history) or "000000"
 
 # ==========================================
 # 4. MAIN CONTENT
@@ -317,30 +420,34 @@ if menu == "1. อัปเดตผลรางวัล":
                     "bottom_2": val_2d
                 }])
                 
-                # 1. บันทึกลงไฟล์หลัก history_lao.csv
-                main_exists = os.path.exists(CSV_FILE_MAIN)
-                new_row.to_csv(CSV_FILE_MAIN, mode="a", header=not main_exists, index=False, encoding="utf-8")
-                
-                # 2. บันทึกลงไฟล์แยกรายวันอัตโนมัติจากวันที่กรอก
-                try:
-                    dt_obj = datetime.strptime(input_date.strip(), "%d/%m/%Y")
-                    day_en = dt_obj.strftime("%A")
-                    day_code = DAY_MAP.get(day_en, "mon")
-                    daily_filename = f"history_lao_{day_code}.csv"
-                    
-                    daily_exists = os.path.exists(daily_filename)
-                    new_row.to_csv(daily_filename, mode="a", header=not daily_exists, index=False, encoding="utf-8")
-                    st.success(f"✅ บันทึกข้อมูลลงในไฟล์หลักและ `{daily_filename}` เรียบร้อยแล้ว!")
-                except Exception:
-                    st.success(f"✅ บันทึกข้อมูลลงไฟล์หลักเรียบร้อยแล้ว!")
-                
+                dt_obj = parse_draw_date(input_date)
+                if pd.isna(dt_obj):
+                    st.error("รูปแบบวันที่ไม่ถูกต้อง กรุณาใช้ DD/MM/YYYY")
+                    st.stop()
+                day_en = dt_obj.day_name()
+                if day_en not in DAY_CSV_MAP:
+                    st.error("ระบบรองรับเฉพาะผลวันจันทร์-ศุกร์")
+                    st.stop()
+
+                target_file = DAY_CSV_MAP[day_en]
+                current_df = load_csv_data(target_file)
+                new_row = pd.DataFrame([{
+                    "date": input_date.strip(),
+                    "special": val_6d,
+                    "first_prize": val_4d,
+                    "top_3": val_3d,
+                    "bottom_2": val_2d,
+                }])
+                updated = normalize_csv(pd.concat([current_df, new_row], ignore_index=True))
+                if save_csv_data(target_file, updated, f"Update {target_file} - {input_date}"):
+                    st.success(f"บันทึกและ Sync `{target_file}` ไป GitHub เรียบร้อยแล้ว")
                 st.rerun()
             else:
                 st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
 
 elif menu == "2. แสดงประวัติ (History)":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 📂 แสดงประวัติข้อมูลสถิติย้อนหลัง (history_lao.csv)")
+    st.markdown("### 📂 ประวัติรวมจาก CSV วันจันทร์–ศุกร์")
     if df_history is not None and not df_history.empty:
         st.dataframe(df_history, use_container_width=True)
     else:
@@ -350,19 +457,25 @@ elif menu == "3. ลบข้อมูลงวดล่าสุด":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🗑️ ลบข้อมูลงวดล่าสุดออกจากระบบ")
     if df_history is not None and not df_history.empty:
-        st.write("ข้อมูลแถวล่างสุดปัจจุบัน (งวดล่าสุดที่จะถูกลบ):")
-        st.write(df_history.tail(1))
-        if st.button("❌ ยืนยันลบข้อมูลงวดล่าสุด", type="primary"):
-            df_history = df_history.iloc[:-1].reset_index(drop=True)
-            df_history.to_csv(CSV_FILE_MAIN, index=False, encoding="utf-8")
-            st.success("ลบข้อมูลงวดล่าสุดเรียบร้อยแล้ว!")
-            st.rerun()
+        st.write("เลือกวัน แล้วลบงวดล่าสุดจากไฟล์ประจำวันนั้น")
+        delete_day = st.selectbox("เลือกไฟล์วันที่ต้องการลบ", WEEKDAYS, key="delete_day")
+        delete_file = DAY_CSV_MAP[delete_day]
+        delete_df = load_csv_data(delete_file)
+        if not delete_df.empty:
+            st.write(delete_df.head(1))
+            if st.button("❌ ยืนยันลบงวดล่าสุดและ Sync GitHub", type="primary"):
+                updated_delete = delete_df.iloc[1:].reset_index(drop=True)
+                if save_csv_data(delete_file, updated_delete, f"Delete latest draw from {delete_file}"):
+                    st.success(f"ลบงวดล่าสุดจาก {delete_file} เรียบร้อยแล้ว")
+                    st.rerun()
+        else:
+            st.warning(f"ไม่มีข้อมูลใน {delete_file}")
     else:
         st.warning("ไม่มีข้อมูลให้ลบ")
 
 elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 🏆 Formula Ranking (จัดอันดับความแม่นยำ 15 สูตร)")
+    st.markdown("### 🏆 Formula Ranking (ข้อมูลรวมจาก CSV วันจันทร์–ศุกร์)")
     if df_history is not None and not df_history.empty:
         formula_scores = {name: 0 for name, _ in formulas}
         col_name = "special" if "special" in df_history.columns else df_history.columns[0]
@@ -388,35 +501,26 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
     
     day_selected = st.selectbox(
         "เลือกวันของงวดถัดไป / วันที่ต้องการวิเคราะห์",
-        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        WEEKDAYS
     )
 
-    # ดึงข้อมืองวดรวมล่าสุดจากแถวล่างสุด
-    latest_all = latest_base
-    if df_history is not None and not df_history.empty:
-        col_name = "special" if "special" in df_history.columns else df_history.columns[0]
-        for raw_val in reversed(df_history[col_name].tolist()):
-            v_str = str(raw_val).strip()
-            if v_str.isdigit() and len(v_str) >= 6:
-                latest_all = v_str[:6]
-                break
+    # เลขฐานรวมล่าสุดจากข้อมูลรวม CSV ทั้ง 5 วัน
+    latest_all = get_latest_valid_base(df_history) or "000000"
 
-    # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน
+    # อ่านเลขฐานล่าสุดของไฟล์วันที่เลือก
     df_day_specific = load_specific_day_history(day_selected)
-    latest_day = latest_all
-    if df_day_specific is not None and not df_day_specific.empty:
-        col_day = "special" if "special" in df_day_specific.columns else df_day_specific.columns[0]
-        for raw_val in reversed(df_day_specific[col_day].tolist()):
-            v_str = str(raw_val).strip()
-            if v_str.isdigit() and len(v_str) >= 6:
-                latest_day = v_str[:6]
-                break
+    latest_day = get_latest_valid_base(df_day_specific) or "000000"
 
     col_a, col_b = st.columns(2)
     with col_a:
-        st.info(f"📊 **งวดรวมล่าสุด (`history_lao.csv`)**\n\nเลขฐาน 6 หลัก: `{latest_all}`\n\n3 ตัว/4 ตัว: `{latest_all[-3:]}` / `{latest_all[-4:]}`")
+        st.info(f"📊 **งวดรวมล่าสุด (CSV Monday–Friday)**\n\nเลขฐาน 6 หลัก: `{latest_all}`\n\n3 ตัว/4 ตัว: `{latest_all[-3:]}` / `{latest_all[-4:]}`")
     with col_b:
         st.success(f"📌 **งวดประจำวัน {day_selected} ล่าสุด**\n\nเลขฐาน 6 หลัก: `{latest_day}`\n\n3 ตัว/4 ตัว: `{latest_day[-3:]}` / `{latest_day[-4:]}`")
+
+    if latest_all == "000000":
+        st.warning("ไม่พบเลขฐาน 6 หลักใน CSV ทั้ง 5 วัน กรุณาตรวจสอบคอลัมน์ special")
+    if latest_day == "000000":
+        st.warning(f"ไม่พบเลขฐาน 6 หลักใน {DAY_CSV_MAP[day_selected]}")
 
     daily_6 = DAILY_NUMBERS.get(day_selected, "000000")
     st.write(f"🎯 **ชุดเลขประจำวัน ({day_selected}):** `{daily_6}`")
@@ -424,9 +528,6 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
     display_count = st.radio("เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:", [5, 6], index=1, horizontal=True)
 
     if st.button("🚀 ประมวลผลทำนายเลข (ผสาน 3 ส่วน)", type="primary", use_container_width=True):
-        if day_selected == "Saturday":
-            st.warning("⚠️ [AI WARNING] วันเสาร์มีสถิติการออกเลขเบิ้ลหรือหามสูง แนะนำให้ระวังเป็นพิเศษ!")
-
         outputs_all = {}
         outputs_day = {}
         
