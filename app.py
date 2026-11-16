@@ -281,7 +281,7 @@ menu = st.sidebar.selectbox(
 
 df_history = load_csv_data(CSV_FILE_MAIN)
 
-latest_base = "691489"
+latest_base = "000000"
 if df_history is not None and not df_history.empty:
     col_name = "special" if "special" in df_history.columns else df_history.columns[0]
     for raw_val in reversed(df_history[col_name].tolist()):
@@ -289,6 +289,8 @@ if df_history is not None and not df_history.empty:
         if v_str.isdigit() and len(v_str) >= 6:
             latest_base = v_str[:6]
             break
+else:
+    st.sidebar.warning("⚠️ ยังไม่มีข้อมูลใน history_lao.csv")
 
 # ==========================================
 # 4. MAIN CONTENT
