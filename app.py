@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (Fixed CSV Column Reading)
+# app.py - Lao AI Professional v4.1 (Fixed Monday / Daily History Reading)
 import os
 import streamlit as st
 import pandas as pd
@@ -134,10 +134,16 @@ def load_csv_data(filename):
     return pd.DataFrame()
 
 def load_specific_day_history(day_en):
-    """โหลดข้อมูลเฉพาะไฟล์ CSV ประจำวันนั้นๆ เช่น history_lao_thu.csv"""
+    """โหลดข้อมูลเฉพาะไฟล์ CSV ประจำวันนั้นๆ เช่น history_lao_mon.csv"""
     day_code = DAY_MAP.get(day_en, "mon")
     filename = f"history_lao_{day_code}.csv"
-    return load_csv_data(filename)
+    df = load_csv_data(filename)
+    
+    # หากไม่มีไฟล์รายวัน ให้ดึงจากไฟล์หลักแล้วกรองตามวันในสัปดาห์ (ถ้ามีคอลัมน์วันที่) หรือใช้ไฟล์หลักสำรอง
+    if df.empty and os.path.exists(CSV_FILE_MAIN):
+        df_main = load_csv_data(CSV_FILE_MAIN)
+        return df_main
+    return df
 
 def formula5(number):
     digits = [int(x) for x in number]
@@ -275,7 +281,7 @@ if menu == "1. อัปเดตผลรางวัล":
     st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่")
     
     with st.form("update_form"):
-        input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 04/11/2569)")
+        input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 16/11/2026)")
         input_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):")
         submitted = st.form_submit_button("บันทึกผลรางวัล")
         
@@ -365,7 +371,7 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
                 latest_all = v_str[:6]
                 break
 
-    # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน
+    # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน (เช่น history_lao_mon.csv)
     df_day_specific = load_specific_day_history(day_selected)
     latest_day = latest_all
     if df_day_specific is not None and not df_day_specific.empty:
