@@ -1,4 +1,4 @@
-# app.py - Lao AI Professional v4.1 (Full Complete Code with Corrected Latest Row Retrieval)
+# app.py - Lao AI Professional v4.1 (Cleaned & Optimized)
 import os
 import streamlit as st
 import pandas as pd
@@ -332,7 +332,7 @@ if menu == "1. อัปเดตผลรางวัล":
                     new_row.to_csv(daily_filename, mode="a", header=not daily_exists, index=False, encoding="utf-8")
                     st.success(f"✅ บันทึกข้อมูลลงในไฟล์หลักและ `{daily_filename}` เรียบร้อยแล้ว!")
                 except Exception:
-                    st.success(f"✅ บันทึกข้อมูลลงไฟล์หลักเรียบร้อยแล้ว!")
+                    st.success("✅ บันทึกข้อมูลลงไฟล์หลักเรียบร้อยแล้ว!")
                 
                 st.rerun()
             else:
