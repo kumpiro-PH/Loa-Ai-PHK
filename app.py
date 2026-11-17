@@ -10,7 +10,7 @@ from itertools import combinations
 # 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
 # ==========================================
 st.set_page_config(
-    page_title="Lao AI Professional v4.1",
+    page_title="Lao AI Professional v4.2",
     page_icon="🧠",
     layout="centered"
 )
@@ -94,7 +94,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-VERSION = "4.1 WEB 3-WAY FUSION"
+VERSION = "4.2 WEB 3-WAY FUSION + BACKTEST/FREQUENCY"
 CSV_FILE_MAIN = "history_lao.csv"
 
 DAY_MAP = {
@@ -120,37 +120,70 @@ DAILY_NUMBERS = {
 # ==========================================
 # 2. ฟังก์ชันจัดการ CSV และ สูตรคำนวณ (1-15)
 # ==========================================
+def parse_draw_date(value):
+    """แปลงวันที่ DD/MM/YYYY หรือ YYYY-MM-DD รองรับ พ.ศ. และ ค.ศ."""
+    raw = str(value).strip()
+    if not raw:
+        return None
+    parsed = None
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+        try:
+            parsed = datetime.strptime(raw, fmt)
+            break
+        except ValueError:
+            continue
+    if parsed is None:
+        return None
+    if parsed.year >= 2400:
+        parsed = parsed.replace(year=parsed.year - 543)
+    return parsed
+
+def sort_history_by_date(df, newest_first=True):
+    """เรียงประวัติตามวันที่จริง ไม่พึ่งตำแหน่งแถวใน CSV"""
+    if df is None or df.empty or "date" not in df.columns:
+        return df.copy() if df is not None else pd.DataFrame()
+    result = df.copy()
+    result["_parsed_date"] = result["date"].apply(parse_draw_date)
+    result = result.sort_values(
+        "_parsed_date", ascending=not newest_first, na_position="last", kind="stable"
+    )
+    return result.drop(columns=["_parsed_date"]).reset_index(drop=True)
+
 def load_csv_data(filename):
-    """อ่าน CSV ที่มีหัวคอลัมน์ date,special,first_prize,top_3,bottom_2"""
+    """อ่าน CSV และเรียงงวดล่าสุดไว้แถวแรกโดยอัตโนมัติ"""
+    columns = ["date", "special", "first_prize", "top_3", "bottom_2"]
     if os.path.exists(filename):
         try:
             df = pd.read_csv(filename, dtype=str, keep_default_na=False)
             df.columns = df.columns.str.strip()
-            return df
+            for col in columns:
+                if col not in df.columns:
+                    df[col] = ""
+            return sort_history_by_date(df, newest_first=True)
         except Exception as exc:
             st.error(f"ไม่สามารถอ่านไฟล์ {filename}: {exc}")
-            return pd.DataFrame()
-    return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
+            return pd.DataFrame(columns=columns)
+    return pd.DataFrame(columns=columns)
+
+def save_history_upsert(new_row):
+    """บันทึกข้อมูลโดยไม่สร้างวันที่ซ้ำ และเรียงงวดล่าสุดไว้บนสุด"""
+    current = load_csv_data(CSV_FILE_MAIN)
+    combined = pd.concat([current, new_row], ignore_index=True)
+    combined["date"] = combined["date"].astype(str).str.strip()
+    combined = combined.drop_duplicates(subset=["date"], keep="last")
+    combined = sort_history_by_date(combined, newest_first=True)
+    combined.to_csv(CSV_FILE_MAIN, index=False, encoding="utf-8")
 
 def load_specific_day_history(day_en):
-    """โหลดข้อมูลเฉพาะวันในสัปดาห์จากไฟล์หลักโดยการแปลงวันที่ DD/MM/YYYY เป็นชื่อวัน"""
+    """กรองประวัติตามวันในสัปดาห์ โดยรองรับปี พ.ศ./ค.ศ."""
     df_main = load_csv_data(CSV_FILE_MAIN)
     if df_main.empty or "date" not in df_main.columns:
-        return pd.DataFrame()
-    
-    filtered_rows = []
-    for _, row in df_main.iterrows():
-        date_str = str(row["date"]).strip()
-        try:
-            dt_obj = datetime.strptime(date_str, "%d/%m/%Y")
-            if dt_obj.strftime("%A") == day_en:
-                filtered_rows.append(row)
-        except Exception:
-            pass
-            
-    if filtered_rows:
-        return pd.DataFrame(filtered_rows)
-    return pd.DataFrame(columns=df_main.columns)
+        return pd.DataFrame(columns=df_main.columns)
+    parsed_dates = df_main["date"].apply(parse_draw_date)
+    mask = parsed_dates.apply(
+        lambda dt: dt is not None and dt.strftime("%A") == day_en
+    )
+    return df_main.loc[mask].reset_index(drop=True)
 
 def formula5(number):
     digits = [int(x) for x in number]
@@ -299,10 +332,13 @@ if menu == "1. อัปเดตผลรางวัล":
                     "bottom_2": val_2d
                 }])
                 
-                main_exists = os.path.exists(CSV_FILE_MAIN)
-                new_row.to_csv(CSV_FILE_MAIN, mode="a", header=not main_exists, index=False, encoding="utf-8")
-                st.success(f"✅ บันทึกข้อมูลลงในไฟล์ `{CSV_FILE_MAIN}` เรียบร้อยแล้ว!")
-                st.rerun()
+                parsed_input_date = parse_draw_date(input_date)
+                if parsed_input_date is None:
+                    st.error("รูปแบบวันที่ไม่ถูกต้อง กรุณาใช้ DD/MM/YYYY เช่น 16/11/2569")
+                else:
+                    save_history_upsert(new_row)
+                    st.success(f"✅ บันทึก/อัปเดตข้อมูลลงในไฟล์ `{CSV_FILE_MAIN}` เรียบร้อยแล้ว!")
+                    st.rerun()
             else:
                 st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
 
@@ -318,33 +354,93 @@ elif menu == "3. ลบข้อมูลงวดล่าสุด":
     st.title("🧠 Lao AI Professional")
     st.markdown("### 🗑️ ลบข้อมูลงวดล่าสุดออกจากระบบ")
     if df_history is not None and not df_history.empty:
-        st.write("ข้อมูลแถวบนสุดปัจจุบัน (งวดล่าสุดที่จะถูกลบ):")
+        df_history = sort_history_by_date(df_history, newest_first=True)
+        st.write("ข้อมูลงวดล่าสุดตามวันที่ (งวดที่จะถูกลบ):")
         st.write(df_history.head(1))
         if st.button("❌ ยืนยันลบข้อมูลงวดล่าสุด", type="primary"):
-            df_history = df_history.iloc[1:].reset_index(drop=True)
+            latest_date = df_history.iloc[0]["date"]
+            df_history = df_history[df_history["date"].astype(str) != str(latest_date)]
+            df_history = sort_history_by_date(df_history, newest_first=True)
             df_history.to_csv(CSV_FILE_MAIN, index=False, encoding="utf-8")
-            st.success("ลบข้อมูลงวดล่าสุดเรียบร้อยแล้ว!")
+            st.success(f"ลบงวดวันที่ {latest_date} เรียบร้อยแล้ว!")
             st.rerun()
     else:
         st.warning("ไม่มีข้อมูลให้ลบ")
 
 elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
     st.title("🧠 Lao AI Professional")
-    st.markdown("### 🏆 Formula Ranking (จัดอันดับความแม่นยำ 15 สูตร)")
+    st.markdown("### 🏆 Formula Ranking — Backtest + Frequency")
     if df_history is not None and not df_history.empty and "special" in df_history.columns:
-        formula_scores = {name: 0 for name, _ in formulas}
-        for _, row in df_history.iterrows():
-            v_str = str(row["special"]).strip()
-            if v_str.isdigit() and len(v_str) >= 6:
-                for name, func in formulas:
+        history_asc = sort_history_by_date(df_history, newest_first=False)
+        valid_rows = []
+        for _, row in history_asc.iterrows():
+            base = str(row.get("special", "")).strip()
+            actual = str(row.get("first_prize", "")).strip()
+            if base.isdigit() and len(base) >= 6 and actual.isdigit() and len(actual) >= 4:
+                valid_rows.append((base[:6], actual[-4:]))
+
+        if len(valid_rows) < 2:
+            st.warning("ต้องมีข้อมูลอย่างน้อย 2 งวด และมี special 6 หลักกับ first_prize 4 หลัก เพื่อทดสอบสูตรย้อนหลัง")
+        else:
+            ranking_rows = []
+            tests = len(valid_rows) - 1
+            for name, func in formulas:
+                exact_hits = 0
+                digit_hits = 0
+                digit_slots = 0
+                successful_tests = 0
+                output_frequency = Counter()
+                for index in range(tests):
+                    base_number = valid_rows[index][0]
+                    actual_next = valid_rows[index + 1][1]
                     try:
-                        func(v_str)
-                        formula_scores[name] += 1
-                    except:
-                        pass
-        sorted_formulas = sorted(formula_scores.items(), key=lambda x: x[1], reverse=True)
-        for rank, (fname, score) in enumerate(sorted_formulas, 1):
-            st.write(f"**{rank}. {fname}** — คะแนนประสิทธิภาพ: {score}")
+                        predicted = str(func(base_number)).strip()
+                        if not predicted.isdigit():
+                            continue
+                        predicted = predicted.zfill(4)[-4:]
+                        successful_tests += 1
+                        exact_hits += int(predicted == actual_next)
+                        predicted_count = Counter(predicted)
+                        actual_count = Counter(actual_next)
+                        digit_hits += sum((predicted_count & actual_count).values())
+                        digit_slots += 4
+                        output_frequency.update(predicted)
+                    except Exception:
+                        continue
+
+                exact_rate = exact_hits / successful_tests * 100 if successful_tests else 0.0
+                frequency_rate = digit_hits / digit_slots * 100 if digit_slots else 0.0
+                hybrid_score = exact_rate * 0.70 + frequency_rate * 0.30
+                common_digits = ", ".join(
+                    f"{digit} ({count})"
+                    for digit, count in output_frequency.most_common(3)
+                ) or "-"
+                ranking_rows.append({
+                    "สูตร": name,
+                    "ทดสอบสำเร็จ (งวด)": successful_tests,
+                    "ตรง 4 หลัก": exact_hits,
+                    "Exact Rate (%)": round(exact_rate, 2),
+                    "เลขตรงไม่สนตำแหน่ง": digit_hits,
+                    "Frequency Rate (%)": round(frequency_rate, 2),
+                    "Hybrid Score": round(hybrid_score, 2),
+                    "เลขที่สูตรสร้างบ่อย": common_digits,
+                })
+
+            result_df = pd.DataFrame(ranking_rows).sort_values(
+                ["Hybrid Score", "Exact Rate (%)", "Frequency Rate (%)"],
+                ascending=False
+            ).reset_index(drop=True)
+            result_df.insert(0, "อันดับ", range(1, len(result_df) + 1))
+            st.caption(
+                "Backtest: ใช้ special ของงวดก่อนหน้าเป็นฐาน แล้วเทียบผล 4 หลักกับ "
+                "first_prize ของงวดถัดไป | Hybrid Score = Exact Rate 70% + "
+                "Frequency Rate 30% (นับเลขตรงโดยไม่สนตำแหน่งและคำนึงถึงเลขซ้ำ)"
+            )
+            st.dataframe(result_df, use_container_width=True, hide_index=True)
+            st.info(
+                f"ใช้ข้อมูล {len(valid_rows)} งวด ทดสอบย้อนหลัง {tests} ช่วง "
+                "โดยไม่ใช้ผลรางวัลของงวดเป้าหมายเป็นฐานคำนวณ"
+            )
     else:
         st.warning("ยังไม่มีข้อมูลสำหรับจัดอันดับสูตร")
 
@@ -357,10 +453,11 @@ elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
         ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     )
 
-    # 1. ดึงงวดรวมล่าสุดจากแถวแรกสุดของไฟล์หลัก (เช่น 290900)
+    # 1. ดึงงวดรวมล่าสุดจากวันที่จริง ไม่พึ่งลำดับแถวใน CSV
     latest_all = "000000"
-    if df_history is not None and not df_history.empty and "special" in df_history.columns:
-        for val in df_history["special"].tolist():
+    history_sorted = sort_history_by_date(df_history, newest_first=True)
+    if history_sorted is not None and not history_sorted.empty and "special" in history_sorted.columns:
+        for val in history_sorted["special"].tolist():
             v_str = str(val).strip()
             if v_str.isdigit() and len(v_str) >= 6:
                 latest_all = v_str[:6]
