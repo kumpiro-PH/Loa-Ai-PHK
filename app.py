@@ -10,7 +10,7 @@ from itertools import combinations
 # 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
 # ==========================================
 st.set_page_config(
-    page_title="Lao AI Professional v4.2",
+    page_title="Lao AI Professional v4.4",
     page_icon="🧠",
     layout="centered"
 )
@@ -94,7 +94,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-VERSION = "4.2 WEB 3-WAY FUSION + BACKTEST/FREQUENCY"
+VERSION = "4.4 GITHUB CSV TRAILING-COMMA FIX + BACKTEST/FREQUENCY"
 # ใช้ path ของโฟลเดอร์ app.py โดยตรง เพื่อให้ Streamlit Cloud อ่านไฟล์ใน Repository ได้
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE_MAIN = os.path.join(BASE_DIR, "history_lao.csv")
@@ -174,11 +174,20 @@ def load_csv_data(filename):
             df.columns = [str(c).strip().lower() for c in df.columns]
         else:
             if raw.shape[1] == 2:
+                # รูปแบบมาตรฐานของ history_lao.csv: เลขฐาน 6 หลัก, ผล 4 หลัก
+                raw.columns = ["special", "first_prize"]
+            elif raw.shape[1] == 3 and raw.iloc[:, 2].astype(str).str.strip().eq("").all():
+                # CSV ของผู้ใช้มี comma ปิดท้ายทุกบรรทัด เช่น 691489,1489,
+                # pandas จึงเห็นเป็น 3 คอลัมน์ โดยคอลัมน์ที่ 3 ว่างทั้งหมด
+                raw = raw.iloc[:, :2].copy()
                 raw.columns = ["special", "first_prize"]
             elif raw.shape[1] == 5:
                 raw.columns = standard_columns
             else:
-                st.error(f"รูปแบบ CSV ไม่รองรับ: {os.path.basename(filename)} มี {raw.shape[1]} คอลัมน์")
+                st.error(
+                    f"รูปแบบ CSV ไม่รองรับ: {os.path.basename(filename)} "
+                    f"มี {raw.shape[1]} คอลัมน์ (รองรับ 2 คอลัมน์ หรือ 3 คอลัมน์ที่คอลัมน์สุดท้ายว่าง)"
+                )
                 return pd.DataFrame(columns=standard_columns)
             df = raw
         for col in standard_columns:
