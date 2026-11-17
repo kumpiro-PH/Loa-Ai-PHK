@@ -94,7 +94,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-VERSION = "4.4 GITHUB CSV TRAILING-COMMA FIX + BACKTEST/FREQUENCY"
+VERSION = "4.5 LATEST ROW FIX + GITHUB CSV + BACKTEST/FREQUENCY"
 # ใช้ path ของโฟลเดอร์ app.py โดยตรง เพื่อให้ Streamlit Cloud อ่านไฟล์ใน Repository ได้
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE_MAIN = os.path.join(BASE_DIR, "history_lao.csv")
@@ -196,7 +196,17 @@ def load_csv_data(filename):
         df = df[standard_columns + [c for c in df.columns if c not in standard_columns]]
         df["special"] = df["special"].astype(str).str.strip()
         df["first_prize"] = df["first_prize"].astype(str).str.strip()
-        return sort_history_by_date(df, newest_first=True)
+
+        # CSV แบบไม่มีวันที่ (2 คอลัมน์ หรือ 3 คอลัมน์ที่ท้ายว่าง)
+        # ประวัติของ Repository เรียงจากเก่าไปใหม่ จึงต้องกลับลำดับ
+        # เพื่อให้แถวแรกเป็นงวดล่าสุด ทั้งไฟล์รวมและไฟล์รายวัน
+        has_valid_dates = (
+            df["date"].apply(parse_draw_date).notna().any()
+            if "date" in df.columns else False
+        )
+        if has_valid_dates:
+            return sort_history_by_date(df, newest_first=True)
+        return df.iloc[::-1].reset_index(drop=True)
     except Exception as exc:
         st.error(f"ไม่สามารถอ่านไฟล์ {os.path.basename(filename)}: {exc}")
         return pd.DataFrame(columns=standard_columns)
