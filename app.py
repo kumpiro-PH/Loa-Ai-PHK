@@ -95,7 +95,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 VERSION = "4.2 WEB 3-WAY FUSION + BACKTEST/FREQUENCY"
-CSV_FILE_MAIN = "history_lao.csv"
+# ใช้ path ของโฟลเดอร์ app.py โดยตรง เพื่อให้ Streamlit Cloud อ่านไฟล์ใน Repository ได้
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_FILE_MAIN = os.path.join(BASE_DIR, "history_lao.csv")
+CSV_FILE_BY_DAY = {
+    "Monday": os.path.join(BASE_DIR, "history_lao_mon.csv"),
+    "Tuesday": os.path.join(BASE_DIR, "history_lao_tue.csv"),
+    "Wednesday": os.path.join(BASE_DIR, "history_lao_wed.csv"),
+    "Thursday": os.path.join(BASE_DIR, "history_lao_thu.csv"),
+    "Friday": os.path.join(BASE_DIR, "history_lao_fri.csv"),
+}
 
 DAY_MAP = {
     "Monday": "mon",
@@ -150,40 +159,56 @@ def sort_history_by_date(df, newest_first=True):
     return result.drop(columns=["_parsed_date"]).reset_index(drop=True)
 
 def load_csv_data(filename):
-    """อ่าน CSV และเรียงงวดล่าสุดไว้แถวแรกโดยอัตโนมัติ"""
-    columns = ["date", "special", "first_prize", "top_3", "bottom_2"]
-    if os.path.exists(filename):
-        try:
+    """อ่าน CSV แบบมี header และแบบ history_lao.csv ที่ไม่มี header"""
+    standard_columns = ["date", "special", "first_prize", "top_3", "bottom_2"]
+    if not os.path.exists(filename):
+        return pd.DataFrame(columns=standard_columns)
+    try:
+        raw = pd.read_csv(filename, dtype=str, keep_default_na=False, header=None)
+        if raw.empty:
+            return pd.DataFrame(columns=standard_columns)
+        first_row = [str(v).strip().lower() for v in raw.iloc[0].tolist()]
+        known_headers = set(standard_columns)
+        if any(value in known_headers for value in first_row):
             df = pd.read_csv(filename, dtype=str, keep_default_na=False)
-            df.columns = df.columns.str.strip()
-            for col in columns:
-                if col not in df.columns:
-                    df[col] = ""
-            return sort_history_by_date(df, newest_first=True)
-        except Exception as exc:
-            st.error(f"ไม่สามารถอ่านไฟล์ {filename}: {exc}")
-            return pd.DataFrame(columns=columns)
-    return pd.DataFrame(columns=columns)
+            df.columns = [str(c).strip().lower() for c in df.columns]
+        else:
+            if raw.shape[1] == 2:
+                raw.columns = ["special", "first_prize"]
+            elif raw.shape[1] == 5:
+                raw.columns = standard_columns
+            else:
+                st.error(f"รูปแบบ CSV ไม่รองรับ: {os.path.basename(filename)} มี {raw.shape[1]} คอลัมน์")
+                return pd.DataFrame(columns=standard_columns)
+            df = raw
+        for col in standard_columns:
+            if col not in df.columns:
+                df[col] = ""
+        df = df[standard_columns + [c for c in df.columns if c not in standard_columns]]
+        df["special"] = df["special"].astype(str).str.strip()
+        df["first_prize"] = df["first_prize"].astype(str).str.strip()
+        return sort_history_by_date(df, newest_first=True)
+    except Exception as exc:
+        st.error(f"ไม่สามารถอ่านไฟล์ {os.path.basename(filename)}: {exc}")
+        return pd.DataFrame(columns=standard_columns)
 
 def save_history_upsert(new_row):
-    """บันทึกข้อมูลโดยไม่สร้างวันที่ซ้ำ และเรียงงวดล่าสุดไว้บนสุด"""
+    """บันทึกงวดใหม่โดยไม่ลบประวัติเก่าที่ไม่มีวันที่"""
     current = load_csv_data(CSV_FILE_MAIN)
     combined = pd.concat([current, new_row], ignore_index=True)
     combined["date"] = combined["date"].astype(str).str.strip()
-    combined = combined.drop_duplicates(subset=["date"], keep="last")
+    dated = combined[combined["date"] != ""].drop_duplicates(subset=["date"], keep="last")
+    undated = combined[combined["date"] == ""]
+    combined = pd.concat([dated, undated], ignore_index=True)
     combined = sort_history_by_date(combined, newest_first=True)
     combined.to_csv(CSV_FILE_MAIN, index=False, encoding="utf-8")
 
 def load_specific_day_history(day_en):
-    """กรองประวัติตามวันในสัปดาห์ โดยรองรับปี พ.ศ./ค.ศ."""
-    df_main = load_csv_data(CSV_FILE_MAIN)
-    if df_main.empty or "date" not in df_main.columns:
-        return pd.DataFrame(columns=df_main.columns)
-    parsed_dates = df_main["date"].apply(parse_draw_date)
-    mask = parsed_dates.apply(
-        lambda dt: dt is not None and dt.strftime("%A") == day_en
-    )
-    return df_main.loc[mask].reset_index(drop=True)
+    """อ่านประวัติจาก CSV ประจำวันโดยตรง"""
+    filename = CSV_FILE_BY_DAY.get(day_en)
+    if not filename:
+        return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
+    return load_csv_data(filename)
 
 def formula5(number):
     digits = [int(x) for x in number]
@@ -305,6 +330,13 @@ menu = st.sidebar.selectbox(
 
 df_history = load_csv_data(CSV_FILE_MAIN)
 
+with st.sidebar.expander("ตรวจสอบฐานข้อมูล CSV", expanded=False):
+    st.write(f"Main CSV: {'พบ' if os.path.exists(CSV_FILE_MAIN) else 'ไม่พบ'}")
+    st.write(f"จำนวนงวดรวม: {len(df_history)}")
+    for _day, _path in CSV_FILE_BY_DAY.items():
+        _df_check = load_csv_data(_path)
+        st.write(f"{_day}: {'พบ' if os.path.exists(_path) else 'ไม่พบ'} ({len(_df_check)} งวด)")
+
 # ==========================================
 # 4. MAIN CONTENT
 # ==========================================
@@ -372,6 +404,9 @@ elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
     st.markdown("### 🏆 Formula Ranking — Backtest + Frequency")
     if df_history is not None and not df_history.empty and "special" in df_history.columns:
         history_asc = sort_history_by_date(df_history, newest_first=False)
+        parsed_date_count = df_history["date"].apply(parse_draw_date).notna().sum() if "date" in df_history.columns else 0
+        if parsed_date_count == 0:
+            history_asc = df_history.iloc[::-1].reset_index(drop=True)
         valid_rows = []
         for _, row in history_asc.iterrows():
             base = str(row.get("special", "")).strip()
